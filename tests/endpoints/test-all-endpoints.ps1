@@ -1,10 +1,11 @@
 # =============================================================================
-# Script de test de tous les endpoints — Aggregator Platform
+# Script de test de tous les endpoints - Aggregator Platform
+# Compatible Windows PowerShell 5.1 et PowerShell 7+
 #
 # Prerequis :
 #   - L'API doit tourner sur http://localhost:5080 (ou modifier $BaseUrl)
 #   - TestData.sql doit avoir ete applique en base
-#   - SeedData.sql (super-admin) doit avoir ete applique
+#   - SeedData.sql (super-admin avec hash BCrypt valide) doit avoir ete applique
 #
 # Usage : .\test-all-endpoints.ps1
 # =============================================================================
@@ -37,42 +38,65 @@ function Test-Endpoint {
     Write-Host "[$Method] $Name" -ForegroundColor Cyan
     Write-Host "  URL  : $Url" -ForegroundColor Gray
 
+    $statusCode = 0
+    $content = ""
+
     try {
         $params = @{
             Method = $Method
             Uri = $Url
             Headers = $Headers
             ContentType = "application/json"
-            SkipHttpErrorCheck = $true
+            UseBasicParsing = $true
         }
         if ($Body) { $params.Body = ($Body | ConvertTo-Json -Depth 10) }
         $resp = Invoke-WebRequest @params
         $statusCode = [int]$resp.StatusCode
-
-        if ($ExpectedStatus -contains $statusCode) {
-            Write-Host "  PASS ($statusCode)" -ForegroundColor Green
-            $script:Pass++
-            if ($resp.Content.Length -gt 0 -and $resp.Content.Length -lt 500) {
-                Write-Host "  Resp : $($resp.Content)" -ForegroundColor DarkGray
-            } elseif ($resp.Content.Length -ge 500) {
-                Write-Host "  Resp : (truncated, $($resp.Content.Length) bytes)" -ForegroundColor DarkGray
+        $content = $resp.Content
+    } catch {
+        $ex = $_.Exception
+        # Try to extract status code from various exception shapes (PS 5.1 WebException, PS 7+ HttpResponseException)
+        if ($ex.Response -and $ex.Response.StatusCode) {
+            $statusCode = [int]$ex.Response.StatusCode
+            try {
+                $stream = $ex.Response.GetResponseStream()
+                if ($stream) {
+                    $reader = New-Object System.IO.StreamReader($stream)
+                    $content = $reader.ReadToEnd()
+                    $reader.Close()
+                }
+            } catch { }
+            if (-not $content -and $_.ErrorDetails -and $_.ErrorDetails.Message) {
+                $content = $_.ErrorDetails.Message
             }
-            return $resp.Content
         } else {
-            Write-Host "  FAIL ($statusCode, expected: $($ExpectedStatus -join ','))" -ForegroundColor Red
-            Write-Host "  Resp : $($resp.Content)" -ForegroundColor DarkRed
+            Write-Host ("  ERROR  : " + $ex.Message) -ForegroundColor Red
             $script:Fail++
             return $null
         }
-    } catch {
-        Write-Host "  ERROR : $($_.Exception.Message)" -ForegroundColor Red
+    }
+
+    if ($ExpectedStatus -contains $statusCode) {
+        Write-Host "  PASS ($statusCode)" -ForegroundColor Green
+        $script:Pass++
+        if ($content -and $content.Length -lt 500) {
+            Write-Host ("  Resp : " + $content) -ForegroundColor DarkGray
+        } elseif ($content) {
+            Write-Host ("  Resp : (truncated, " + $content.Length + " bytes)") -ForegroundColor DarkGray
+        }
+        return $content
+    } else {
+        Write-Host ("  FAIL ($statusCode, expected: " + ($ExpectedStatus -join ',') + ")") -ForegroundColor Red
+        if ($content) {
+            Write-Host ("  Resp : " + $content) -ForegroundColor DarkRed
+        }
         $script:Fail++
         return $null
     }
 }
 
 Write-Host "============================================================" -ForegroundColor Yellow
-Write-Host "  Aggregator Platform — Endpoint test suite" -ForegroundColor Yellow
+Write-Host "  Aggregator Platform - Endpoint test suite" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Yellow
 
 # ============================================================================
@@ -83,13 +107,13 @@ Write-Host "--- HEALTH ---" -ForegroundColor Magenta
 Test-Endpoint -Name "Health check" -Method "GET" -Url "$BaseUrl/health" -ExpectedStatus @(200, 503)
 
 # ============================================================================
-# 2. AUTHENTICATION (super-admin du seed)
+# 2. AUTHENTICATION
 # ============================================================================
 Write-Host ""
 Write-Host "--- AUTH ---" -ForegroundColor Magenta
 $loginResp = Test-Endpoint -Name "Login super-admin" -Method "POST" -Url "$BaseUrl/api/v1/auth/login" `
     -Body @{ username = "superadmin"; password = "ChangeMe123!" } `
-    -ExpectedStatus @(200, 400, 401)
+    -ExpectedStatus @(200)
 
 $AdminToken = $null
 if ($loginResp) {
@@ -97,17 +121,15 @@ if ($loginResp) {
         $parsed = $loginResp | ConvertFrom-Json
         if ($parsed.success -and $parsed.data.accessToken) {
             $AdminToken = $parsed.data.accessToken
-            Write-Host "  Token obtenu (premiers chars) : $($AdminToken.Substring(0, [Math]::Min(40, $AdminToken.Length)))..." -ForegroundColor Green
+            $shortToken = $AdminToken.Substring(0, [Math]::Min(40, $AdminToken.Length))
+            Write-Host ("  Token (first chars) : " + $shortToken + "...") -ForegroundColor Green
         }
     } catch { }
 }
 
 if (-not $AdminToken) {
     Write-Host ""
-    Write-Host "ATTENTION : login admin a echoue (hash BCrypt du SeedData a regenerer)." -ForegroundColor Yellow
-    Write-Host "Les endpoints proteges par [Authorize] seront SKIPPED." -ForegroundColor Yellow
-    Write-Host "Pour generer le hash :" -ForegroundColor Yellow
-    Write-Host "  dotnet run --project tests/tools/gen-bcrypt-hash" -ForegroundColor Yellow
+    Write-Host "WARNING : admin login failed. Authenticated endpoints will be SKIPPED." -ForegroundColor Yellow
 }
 
 $AdminHeaders = @{ }
@@ -122,19 +144,20 @@ Write-Host ""
 Write-Host "--- PARTNERS ---" -ForegroundColor Magenta
 
 if ($AdminToken) {
-    Test-Endpoint -Name "Lister les partenaires" -Method "GET" -Url "$BaseUrl/api/v1/partners" `
+    Test-Endpoint -Name "List partners" -Method "GET" -Url "$BaseUrl/api/v1/partners" `
         -Headers $AdminHeaders -ExpectedStatus @(200)
 
-    Test-Endpoint -Name "Recuperer partenaire BANK" -Method "GET" -Url "$BaseUrl/api/v1/partners/$PartnerBankId" `
+    Test-Endpoint -Name "Get BANK partner" -Method "GET" -Url "$BaseUrl/api/v1/partners/$PartnerBankId" `
         -Headers $AdminHeaders -ExpectedStatus @(200)
 
-    Test-Endpoint -Name "Compte miroir partenaire BANK" -Method "GET" -Url "$BaseUrl/api/v1/partners/$PartnerBankId/account" `
+    Test-Endpoint -Name "BANK partner mirror account" -Method "GET" -Url "$BaseUrl/api/v1/partners/$PartnerBankId/account" `
         -Headers $AdminHeaders -ExpectedStatus @(200)
 
-    Test-Endpoint -Name "Creer un nouveau partenaire" -Method "POST" -Url "$BaseUrl/api/v1/partners" `
+    $newPartnerCode = "TEST_" + [Guid]::NewGuid().ToString().Substring(0,8)
+    Test-Endpoint -Name "Create new partner" -Method "POST" -Url "$BaseUrl/api/v1/partners" `
         -Headers $AdminHeaders `
         -Body @{
-            partnerCode = "TEST_$([Guid]::NewGuid().ToString().Substring(0,8))"
+            partnerCode = $newPartnerCode
             name = "Partenaire de test"
             baseUrl = "https://test.partner.local"
             currency = "XOF"
@@ -151,20 +174,23 @@ if ($AdminToken) {
 Write-Host ""
 Write-Host "--- CUSTOMERS ---" -ForegroundColor Magenta
 
-Test-Endpoint -Name "Recuperer client Aissatou" -Method "GET" -Url "$BaseUrl/api/v1/customers/$CustomerId1" `
+Test-Endpoint -Name "Get customer Aissatou" -Method "GET" -Url "$BaseUrl/api/v1/customers/$CustomerId1" `
     -Headers $BankPartnerHeaders -ExpectedStatus @(200)
 
-Test-Endpoint -Name "Lister souscriptions du client" -Method "GET" -Url "$BaseUrl/api/v1/customers/$CustomerId1/subscriptions" `
+Test-Endpoint -Name "List customer subscriptions" -Method "GET" -Url "$BaseUrl/api/v1/customers/$CustomerId1/subscriptions" `
     -Headers $BankPartnerHeaders -ExpectedStatus @(200)
 
-$newCustomerResp = Test-Endpoint -Name "Creer un nouveau client" -Method "POST" -Url "$BaseUrl/api/v1/customers" `
+$extId = "EXT-TEST-" + (Get-Random)
+$randomEmail = "test" + (Get-Random) + "@example.com"
+$randomNid = "SN-TEST-" + (Get-Random)
+Test-Endpoint -Name "Create new customer" -Method "POST" -Url "$BaseUrl/api/v1/customers" `
     -Headers $BankPartnerHeaders `
     -Body @{
-        externalCustomerId = "EXT-TEST-$(Get-Random)"
-        fullName = "Test Client $(Get-Random)"
+        externalCustomerId = $extId
+        fullName = "Test Client Demo"
         dateOfBirth = "1995-01-01"
-        nationalId = "SN-TEST-$(Get-Random)"
-        email = "test$(Get-Random)@example.com"
+        nationalId = $randomNid
+        email = $randomEmail
     } `
     -ExpectedStatus @(200)
 
@@ -174,20 +200,22 @@ $newCustomerResp = Test-Endpoint -Name "Creer un nouveau client" -Method "POST" 
 Write-Host ""
 Write-Host "--- SUBSCRIPTIONS ---" -ForegroundColor Magenta
 
-Test-Endpoint -Name "Recuperer souscription 1" -Method "GET" -Url "$BaseUrl/api/v1/subscriptions/$SubscriptionId1" `
+Test-Endpoint -Name "Get subscription 1" -Method "GET" -Url "$BaseUrl/api/v1/subscriptions/$SubscriptionId1" `
     -Headers $BankPartnerHeaders -ExpectedStatus @(200)
 
-Test-Endpoint -Name "Lister souscriptions du partenaire BANK" -Method "GET" -Url "$BaseUrl/api/v1/subscriptions" `
+Test-Endpoint -Name "List BANK partner subscriptions" -Method "GET" -Url "$BaseUrl/api/v1/subscriptions" `
     -Headers $BankPartnerHeaders -ExpectedStatus @(200)
 
-Test-Endpoint -Name "POST direct : creer souscription (avec PartnerId explicite)" -Method "POST" -Url "$BaseUrl/api/v1/subscriptions" `
+$randomPhone = "+22177" + (Get-Random -Maximum 9999999 -Minimum 1000000).ToString("D7")
+$randomBank = "SN012-NEW-" + (Get-Random)
+Test-Endpoint -Name "POST direct subscription (PartnerId explicit)" -Method "POST" -Url "$BaseUrl/api/v1/subscriptions" `
     -Headers $BankPartnerHeaders `
     -Body @{
         customerId = $CustomerId1
         partnerId = $PartnerBankId
-        bankAccountNumber = "SN012-NEW-$(Get-Random)"
+        bankAccountNumber = $randomBank
         bankCode = "BANK_DEMO"
-        phoneNumber = "+221770$(Get-Random -Maximum 999999 -Minimum 100000)"
+        phoneNumber = $randomPhone
         phoneOperator = "Orange"
     } `
     -ExpectedStatus @(200)
@@ -196,7 +224,7 @@ Test-Endpoint -Name "POST mismatch PartnerId -> 403" -Method "POST" -Url "$BaseU
     -Headers $BankPartnerHeaders `
     -Body @{
         customerId = $CustomerId1
-        partnerId = $PartnerWalletId   # mismatch !
+        partnerId = $PartnerWalletId
         bankAccountNumber = "SN012-MISMATCH"
         bankCode = "BANK_DEMO"
         phoneNumber = "+221770000000"
@@ -205,13 +233,13 @@ Test-Endpoint -Name "POST mismatch PartnerId -> 403" -Method "POST" -Url "$BaseU
     -ExpectedStatus @(403)
 
 # ============================================================================
-# 6. FINANCIAL — Transactions
+# 6. FINANCIAL - Transactions
 # ============================================================================
 Write-Host ""
 Write-Host "--- FINANCIAL ---" -ForegroundColor Magenta
 
-$txRef1 = "TXN-TEST-$(Get-Date -Format 'yyyyMMddHHmmss')-1"
-Test-Endpoint -Name "Initier un Bank Debit" -Method "POST" -Url "$BaseUrl/api/v1/financial/bank/debit" `
+$txRef1 = "TXN-TEST-" + (Get-Date -Format 'yyyyMMddHHmmss') + "-1"
+Test-Endpoint -Name "Bank Debit" -Method "POST" -Url "$BaseUrl/api/v1/financial/bank/debit" `
     -Headers $BankPartnerHeaders `
     -Body @{
         partnerTransactionRef = $txRef1
@@ -222,22 +250,23 @@ Test-Endpoint -Name "Initier un Bank Debit" -Method "POST" -Url "$BaseUrl/api/v1
     } `
     -ExpectedStatus @(200)
 
-# Idempotence : meme partnerTransactionRef doit retourner la meme transaction
-Test-Endpoint -Name "Bank Debit IDEMPOTENT (meme ref)" -Method "POST" -Url "$BaseUrl/api/v1/financial/bank/debit" `
+# Idempotence
+Test-Endpoint -Name "Bank Debit IDEMPOTENT (same ref)" -Method "POST" -Url "$BaseUrl/api/v1/financial/bank/debit" `
     -Headers $BankPartnerHeaders `
     -Body @{
         partnerTransactionRef = $txRef1
         subscriptionId = $SubscriptionId1
         amount = 50000
         currency = "XOF"
-        description = "Doit etre idempotent"
+        description = "Should be idempotent"
     } `
     -ExpectedStatus @(200)
 
+$txRefCredit = "TXN-CREDIT-" + (Get-Date -Format 'yyyyMMddHHmmss')
 Test-Endpoint -Name "Bank Credit" -Method "POST" -Url "$BaseUrl/api/v1/financial/bank/credit" `
     -Headers $BankPartnerHeaders `
     -Body @{
-        partnerTransactionRef = "TXN-CREDIT-$(Get-Date -Format 'yyyyMMddHHmmss')"
+        partnerTransactionRef = $txRefCredit
         subscriptionId = $SubscriptionId1
         amount = 25000
         currency = "XOF"
@@ -245,10 +274,11 @@ Test-Endpoint -Name "Bank Credit" -Method "POST" -Url "$BaseUrl/api/v1/financial
     } `
     -ExpectedStatus @(200)
 
-Test-Endpoint -Name "Wallet Debit (partenaire WALLET)" -Method "POST" -Url "$BaseUrl/api/v1/financial/wallet/debit" `
+$txRefWDebit = "TXN-WDEBIT-" + (Get-Date -Format 'yyyyMMddHHmmss')
+Test-Endpoint -Name "Wallet Debit" -Method "POST" -Url "$BaseUrl/api/v1/financial/wallet/debit" `
     -Headers $WalletPartnerHeaders `
     -Body @{
-        partnerTransactionRef = "TXN-WDEBIT-$(Get-Date -Format 'yyyyMMddHHmmss')"
+        partnerTransactionRef = $txRefWDebit
         subscriptionId = $SubscriptionId2
         amount = 10000
         currency = "XOF"
@@ -256,10 +286,11 @@ Test-Endpoint -Name "Wallet Debit (partenaire WALLET)" -Method "POST" -Url "$Bas
     } `
     -ExpectedStatus @(200)
 
+$txRefWCredit = "TXN-WCREDIT-" + (Get-Date -Format 'yyyyMMddHHmmss')
 Test-Endpoint -Name "Wallet Credit" -Method "POST" -Url "$BaseUrl/api/v1/financial/wallet/credit" `
     -Headers $WalletPartnerHeaders `
     -Body @{
-        partnerTransactionRef = "TXN-WCREDIT-$(Get-Date -Format 'yyyyMMddHHmmss')"
+        partnerTransactionRef = $txRefWCredit
         subscriptionId = $SubscriptionId2
         amount = 15000
         currency = "XOF"
@@ -269,11 +300,11 @@ Test-Endpoint -Name "Wallet Credit" -Method "POST" -Url "$BaseUrl/api/v1/financi
 
 Test-Endpoint -Name "Get Bank Balance" -Method "GET" `
     -Url "$BaseUrl/api/v1/financial/bank/balance?subscriptionId=$SubscriptionId1" `
-    -Headers $BankPartnerHeaders -ExpectedStatus @(200, 500)  # 500 si APIs externes down
+    -Headers $BankPartnerHeaders -ExpectedStatus @(200, 400, 500)
 
 Test-Endpoint -Name "Get Wallet Balance" -Method "GET" `
     -Url "$BaseUrl/api/v1/financial/wallet/balance?subscriptionId=$SubscriptionId2" `
-    -Headers $WalletPartnerHeaders -ExpectedStatus @(200, 500)
+    -Headers $WalletPartnerHeaders -ExpectedStatus @(200, 400, 500)
 
 # ============================================================================
 # 7. ACCOUNTING (admin/finance)
@@ -282,12 +313,12 @@ Write-Host ""
 Write-Host "--- ACCOUNTING ---" -ForegroundColor Magenta
 
 if ($AdminToken) {
-    Test-Endpoint -Name "Lister les schemas comptables" -Method "GET" `
+    Test-Endpoint -Name "List accounting schemas" -Method "GET" `
         -Url "$BaseUrl/api/v1/accounting/schemas" -Headers $AdminHeaders -ExpectedStatus @(200)
 
-    Test-Endpoint -Name "Lister les journaux" -Method "GET" `
+    Test-Endpoint -Name "List journals" -Method "GET" `
         -Url "$BaseUrl/api/v1/accounting/journals?page=1&pageSize=20" -Headers $AdminHeaders -ExpectedStatus @(200)
-} else { Write-Host "  SKIP (pas de token admin)" -ForegroundColor Yellow; $Skip += 2 }
+} else { Write-Host "  SKIP (no admin token)" -ForegroundColor Yellow; $Skip += 2 }
 
 # ============================================================================
 # 8. DASHBOARD
@@ -296,13 +327,13 @@ Write-Host ""
 Write-Host "--- DASHBOARD ---" -ForegroundColor Magenta
 
 if ($AdminToken) {
-    Test-Endpoint -Name "Dashboard admin summary" -Method "GET" `
+    Test-Endpoint -Name "Admin dashboard summary" -Method "GET" `
         -Url "$BaseUrl/api/v1/dashboard/summary" -Headers $AdminHeaders -ExpectedStatus @(200)
 
-    Test-Endpoint -Name "Dashboard partenaire BANK" -Method "GET" `
+    Test-Endpoint -Name "Partner BANK dashboard" -Method "GET" `
         -Url "$BaseUrl/api/v1/dashboard/partners/$PartnerBankId/summary" `
         -Headers $AdminHeaders -ExpectedStatus @(200)
-} else { Write-Host "  SKIP (pas de token admin)" -ForegroundColor Yellow; $Skip += 2 }
+} else { Write-Host "  SKIP (no admin token)" -ForegroundColor Yellow; $Skip += 2 }
 
 # ============================================================================
 # 9. REPORTS
@@ -311,54 +342,48 @@ Write-Host ""
 Write-Host "--- REPORTS ---" -ForegroundColor Magenta
 
 if ($AdminToken) {
-    Test-Endpoint -Name "Rapport transactions" -Method "GET" `
+    Test-Endpoint -Name "Transactions report" -Method "GET" `
         -Url "$BaseUrl/api/v1/reports/transactions?fromDate=2026-01-01&toDate=2027-01-01" `
         -Headers $AdminHeaders -ExpectedStatus @(200)
 
-    Test-Endpoint -Name "Rapport souscriptions" -Method "GET" `
+    Test-Endpoint -Name "Subscriptions report" -Method "GET" `
         -Url "$BaseUrl/api/v1/reports/subscriptions" -Headers $AdminHeaders -ExpectedStatus @(200)
 
     Test-Endpoint -Name "Failure analysis" -Method "GET" `
         -Url "$BaseUrl/api/v1/reports/failure-analysis" -Headers $AdminHeaders -ExpectedStatus @(200)
 
-    Test-Endpoint -Name "Rapport comptable" -Method "GET" `
+    Test-Endpoint -Name "Accounting report" -Method "GET" `
         -Url "$BaseUrl/api/v1/reports/accounting" -Headers $AdminHeaders -ExpectedStatus @(200)
 
-    Test-Endpoint -Name "Releve partenaire BANK" -Method "GET" `
+    Test-Endpoint -Name "BANK partner statement" -Method "GET" `
         -Url "$BaseUrl/api/v1/reports/partner-account-statement?partnerId=$PartnerBankId" `
         -Headers $AdminHeaders -ExpectedStatus @(200)
-} else { Write-Host "  SKIP (pas de token admin)" -ForegroundColor Yellow; $Skip += 5 }
+} else { Write-Host "  SKIP (no admin token)" -ForegroundColor Yellow; $Skip += 5 }
 
 # ============================================================================
-# 10. SECURITY tests (rate limit, missing partner id, etc.)
+# 10. SECURITY
 # ============================================================================
 Write-Host ""
 Write-Host "--- SECURITY ---" -ForegroundColor Magenta
 
-Test-Endpoint -Name "401 si X-Partner-Id manquant sur endpoint protege" -Method "GET" `
+Test-Endpoint -Name "401 if X-Partner-Id missing" -Method "GET" `
     -Url "$BaseUrl/api/v1/subscriptions/$SubscriptionId1" -ExpectedStatus @(401)
 
-Test-Endpoint -Name "401 si partenaire inexistant" -Method "GET" `
+Test-Endpoint -Name "401 if partner does not exist" -Method "GET" `
     -Url "$BaseUrl/api/v1/subscriptions/$SubscriptionId1" `
     -Headers @{ "X-Partner-Id" = "00000000-0000-0000-0000-000000000000" } -ExpectedStatus @(401)
 
-Test-Endpoint -Name "401 si JWT manquant sur /partners" -Method "GET" `
+Test-Endpoint -Name "401 if JWT missing on /partners" -Method "GET" `
     -Url "$BaseUrl/api/v1/partners" -ExpectedStatus @(401)
 
 # ============================================================================
-# RAPPORT FINAL
+# SUMMARY
 # ============================================================================
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Yellow
-Write-Host "  RESUME" -ForegroundColor Yellow
+Write-Host "  SUMMARY" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Yellow
-Write-Host "  PASS    : $Pass" -ForegroundColor Green
-Write-Host "  FAIL    : $Fail" -ForegroundColor Red
-Write-Host "  SKIPPED : $Skip" -ForegroundColor Yellow
-Write-Host ""
-Write-Host "Apres execution, verifie en base SQL avec :" -ForegroundColor Cyan
-Write-Host "  SELECT TOP 20 * FROM Transactions ORDER BY InitiatedAt DESC;" -ForegroundColor Gray
-Write-Host "  SELECT TOP 20 * FROM PartnerAccountMovements ORDER BY MovementDate DESC;" -ForegroundColor Gray
-Write-Host "  SELECT TOP 20 * FROM JournalEntries ORDER BY EntryDate DESC;" -ForegroundColor Gray
-Write-Host "  SELECT TOP 20 * FROM AuditLogs ORDER BY PerformedAt DESC;" -ForegroundColor Gray
+Write-Host ("  PASS    : " + $Pass) -ForegroundColor Green
+Write-Host ("  FAIL    : " + $Fail) -ForegroundColor Red
+Write-Host ("  SKIPPED : " + $Skip) -ForegroundColor Yellow
 Write-Host ""

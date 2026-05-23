@@ -82,11 +82,13 @@ public class GetFailureAnalysisQueryHandler : IRequestHandler<GetFailureAnalysis
         if (request.FromDate.HasValue) q = q.Where(t => t.InitiatedAt >= request.FromDate);
         if (request.ToDate.HasValue) q = q.Where(t => t.InitiatedAt <= request.ToDate);
 
-        var grouped = await q.GroupBy(t => t.FailureReason ?? "UNKNOWN")
-            .Select(g => new FailureAnalysisItemDto(g.Key, g.Count(), g.Sum(t => t.Amount)))
-            .OrderByDescending(g => g.Count)
+        // Projection en tuple anonyme traduisible par EF Core, puis materialisation puis projection vers DTO.
+        var raw = await q.GroupBy(t => t.FailureReason ?? "UNKNOWN")
+            .Select(g => new { Reason = g.Key, Count = g.Count(), TotalAmount = g.Sum(t => t.Amount) })
+            .OrderByDescending(x => x.Count)
             .ToListAsync(cancellationToken);
 
+        var grouped = raw.Select(x => new FailureAnalysisItemDto(x.Reason, x.Count, x.TotalAmount)).ToList();
         return Result<IReadOnlyList<FailureAnalysisItemDto>>.Success(grouped);
     }
 }
@@ -103,14 +105,19 @@ public class GetAccountingReportQueryHandler : IRequestHandler<GetAccountingRepo
         if (request.FromDate.HasValue) q = q.Where(l => l.Entry!.EntryDate >= request.FromDate);
         if (request.ToDate.HasValue) q = q.Where(l => l.Entry!.EntryDate <= request.ToDate);
 
-        var grouped = await q.GroupBy(l => l.AccountCode).Select(g => new AccountingReportItemDto(
-            g.Key,
-            g.Where(x => x.Side == LedgerSide.Debit).Sum(x => x.Amount),
-            g.Where(x => x.Side == LedgerSide.Credit).Sum(x => x.Amount),
-            g.Where(x => x.Side == LedgerSide.Debit).Sum(x => x.Amount) - g.Where(x => x.Side == LedgerSide.Credit).Sum(x => x.Amount)))
+        // Projection en tuple anonyme traduisible par EF Core (Sum conditionnel via expression case).
+        var raw = await q.GroupBy(l => l.AccountCode)
+            .Select(g => new
+            {
+                AccountCode = g.Key,
+                TotalDebit  = g.Where(x => x.Side == LedgerSide.Debit).Sum(x => (decimal?)x.Amount) ?? 0m,
+                TotalCredit = g.Where(x => x.Side == LedgerSide.Credit).Sum(x => (decimal?)x.Amount) ?? 0m
+            })
             .OrderBy(x => x.AccountCode)
             .ToListAsync(cancellationToken);
 
+        var grouped = raw.Select(x => new AccountingReportItemDto(
+            x.AccountCode, x.TotalDebit, x.TotalCredit, x.TotalDebit - x.TotalCredit)).ToList();
         return Result<IReadOnlyList<AccountingReportItemDto>>.Success(grouped);
     }
 }

@@ -27,7 +27,7 @@ BEGIN
         '11111111-1111-1111-1111-111111111111',
         'BANK_DEMO',
         'Banque Demo SA',
-        'https://api.bank-demo.local',
+        'http://localhost:5080', -- pour dev local ; remplacer par https://api.bank-demo.local en prod
         -- SHA-256 de 'demo-api-key-bank-1234' (la cle en clair pour les tests = 'demo-api-key-bank-1234')
         '8e3a4ee5e2e5e1e6d7f8a9b0c1d2e3f405a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0',
         'P-BANK_DEMO',
@@ -52,7 +52,7 @@ BEGIN
         '22222222-2222-2222-2222-222222222222',
         'WALLET_DEMO',
         'Wallet Demo (Orange Money)',
-        'https://api.wallet-demo.local',
+        'http://localhost:5080', -- pour dev local ; remplacer par https://api.wallet-demo.local en prod
         -- SHA-256 de 'demo-api-key-wallet-5678'
         '9f4b5ff6f3f6f2f7e8f9b0c1d2e3f4a5b607c8d9e0f1a2b3c4d5e6f7a8b9c0d1',
         'P-WALLET_DEMO',
