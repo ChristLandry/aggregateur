@@ -1,0 +1,51 @@
+using AggregatorPlatform.Application.Common;
+using AggregatorPlatform.Application.DTOs;
+using AggregatorPlatform.Application.Features.Accounting.Commands;
+using AggregatorPlatform.Application.Features.Accounting.Queries;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace AggregatorPlatform.API.Controllers;
+
+[Route("api/v1/accounting")]
+[Authorize(Roles = "Admin,SuperAdmin,Finance")]
+public class AccountingController : BaseApiController
+{
+    /// <summary>Create accounting schema.</summary>
+    [HttpPost("schemas")]
+    public async Task<ActionResult<ApiResponse<Guid>>> CreateSchema([FromBody] CreateAccountingSchemaRequest request, CancellationToken ct)
+        => ToResponse(await Mediator.Send(new CreateAccountingSchemaCommand(request), ct));
+
+    /// <summary>List schemas.</summary>
+    [HttpGet("schemas")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AccountingSchemaDto>>>> GetAll(CancellationToken ct)
+        => ToResponse(await Mediator.Send(new GetAllSchemasQuery(), ct));
+
+    /// <summary>Get a schema by id.</summary>
+    [HttpGet("schemas/{id:guid}")]
+    public async Task<ActionResult<ApiResponse<AccountingSchemaDto>>> GetById(Guid id, CancellationToken ct)
+        => ToResponse(await Mediator.Send(new GetSchemaByIdQuery(id), ct));
+
+    /// <summary>Update a schema.</summary>
+    [HttpPut("schemas/{id:guid}")]
+    public async Task<ActionResult<ApiResponse>> Update(Guid id, [FromBody] UpdateAccountingSchemaRequest request, CancellationToken ct)
+        => ToResponse(await Mediator.Send(new UpdateAccountingSchemaCommand(id, request), ct));
+
+    /// <summary>Add a line to a schema.</summary>
+    [HttpPost("schemas/{id:guid}/lines")]
+    public async Task<ActionResult<ApiResponse<Guid>>> AddLine(Guid id, [FromBody] CreateAccountingSchemaLineRequest line, CancellationToken ct)
+        => ToResponse(await Mediator.Send(new AddSchemaLineCommand(id, line), ct));
+
+    /// <summary>Remove a line from a schema (admin only).</summary>
+    [HttpDelete("schemas/{id:guid}/lines/{lineId:guid}")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    public async Task<ActionResult<ApiResponse>> RemoveLine(Guid id, Guid lineId, CancellationToken ct)
+        => ToResponse(await Mediator.Send(new RemoveSchemaLineCommand(id, lineId), ct));
+
+    /// <summary>Get journal entries.</summary>
+    [HttpGet("journals")]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<JournalEntryDto>>>> GetJournals(
+        [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
+        => ToResponse(await Mediator.Send(new GetJournalEntriesQuery(fromDate, toDate, page, pageSize), ct));
+}

@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aggregator-api
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      AUTO_MIGRATE: "true"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=AggregatorDB;User Id=sa;Password=YourPass123!;TrustServerCertificate=true;Encrypt=false"
+      Jwt__Secret: "dev_secret_a2f8b3c9e1d7f4a6b8c0e2f4a6b8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2c4"
+      Jwt__Issuer: "AggregatorPlatform"
+      Jwt__Audience: "AggregatorClients"
+      Jwt__ExpiryMinutes: "60"
+      Jwt__RefreshExpiryDays: "7"
+      Encryption__Key: "K2v6YH3p+vQp1xWZxnxJrk9w0HtSk+VyP3yQwO6sMQk="
+      Encryption__IV: "Q1xLZ3Wq3R2pV5sN9oQwLg=="
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - aggregator-net
+    volumes:
+      - ./logs:/app/logs
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: aggregator-sqlserver
+    environment:
+      SA_PASSWORD: "YourPass123!"
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    networks:
+      - aggregator-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourPass123!' -C -Q 'SELECT 1' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+networks:
+  aggregator-net:
+    driver: bridge
+
+volumes:
+  sqlserver-data:
