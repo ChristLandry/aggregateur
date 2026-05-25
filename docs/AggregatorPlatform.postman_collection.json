@@ -1,0 +1,2089 @@
+{
+  "info": {
+    "_postman_id": "d6f3a8e0-2a4c-4f0b-9a4e-aggregator2026",
+    "name": "AggregatorPlatform API",
+    "description": "Collection generee automatiquement couvrant tous les endpoints du backend AggregatorPlatform (Auth, Partners, Customers, Subscriptions, Financial, Accounting, Dashboard, Reports, System).\n\nPre-requis :\n  - API demarree localement (default http://localhost:5000).\n  - BD seedee (voir tools/seed-db.ps1) avec superadmin/ChangeMe123!.\n\nWorkflow recommande :\n  1. Auth > Login        -> capture accessToken + refreshToken\n  2. Partners > Create   -> capture partnerId + partnerCode + apiKey\n  3. Customers > Create  -> capture customerId\n  4. Customers > Subscriptions > Create -> capture subscriptionId\n  5. Financial > Bank/Debit (ou autres) -> capture transactionId\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Ajoute automatiquement X-Partner-Id sur toutes les requetes sauf indication contraire.",
+          "// Pour les endpoints qui ne veulent pas du header, il est marque 'disabled:true' dans la requete.",
+          "const url = pm.request.url.getPath();",
+          "const partnerId = pm.environment.get('partnerId');",
+          "const hasHeader = pm.request.headers.has('X-Partner-Id');",
+          "if (partnerId && !hasHeader) {",
+          "  pm.request.headers.add({ key: 'X-Partner-Id', value: partnerId });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "{{baseUrl}}"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Login, refresh, logout. Capture accessToken + refreshToken dans l'environnement.",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"twoFactorCode\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Authentifie un utilisateur. Capture accessToken et refreshToken dans l'environnement.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test(\"Login OK\", () => {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "  pm.expect(json.success).to.be.true;",
+                  "});",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"accessToken\", json.data.accessToken);",
+                  "  pm.environment.set(\"refreshToken\", json.data.refreshToken);",
+                  "  console.log(\"Tokens enregistres dans l'environnement.\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Echange un refresh token contre un nouveau access token.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"accessToken\", json.data.accessToken);",
+                  "  pm.environment.set(\"refreshToken\", json.data.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Revoque le refresh token courant."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Partners",
+      "description": "CRUD partenaires + rotation API key + compte miroir.",
+      "item": [
+        {
+          "name": "Create partner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerCode\": \"PARTNER_NEW\",\n  \"name\": \"Banque nouvelle\",\n  \"baseUrl\": \"http://localhost:5080\",\n  \"currency\": \"XOF\",\n  \"partnerBankAccount\": \"010101010101\",\n  \"accountCode\": \"P-NEW\",\n  \"webhookUrl\": \"https://webhook.example.com/aggregator\",\n  \"rateLimitPerMin\": 100,\n  \"ipWhitelist\": null,\n  \"requireHmac\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Cree un partenaire et son compte miroir. Le partnerBankAccount est OBLIGATOIRE."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdPartnerId\", json.data.partnerId);",
+                  "  pm.environment.set(\"createdPartnerCode\", json.data.partnerCode);",
+                  "  pm.environment.set(\"createdPartnerApiKey\", json.data.apiKey);",
+                  "  console.log(\"Partner cree : \" + json.data.partnerId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List partners",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get partner by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "description": "Variable de chemin: :id (utilise {{partnerId}})."
+          }
+        },
+        {
+          "name": "Update partner",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Banque mise a jour\",\n  \"baseUrl\": \"http://localhost:5080\",\n  \"accountCode\": \"P-UPD\",\n  \"webhookUrl\": \"https://webhook.example.com/aggregator\",\n  \"rateLimitPerMin\": 200,\n  \"ipWhitelist\": null,\n  \"requireHmac\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Change partner status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/:id/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                ":id",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Statuts : 0=Inactive, 1=Active, 2=Suspended."
+          }
+        },
+        {
+          "name": "Rotate API key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/:id/rotate-key",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                ":id",
+                "rotate-key"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "description": "Renouvelle la cle API du partenaire (capture en variable pour reutilisation)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdPartnerApiKey\", json.data.apiKey);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get partner account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/:id/account",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                ":id",
+                "account"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "description": "Retourne le compte miroir incluant PartnerBankAccount dechiffre + solde."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "description": "Clients + leurs souscriptions.",
+      "item": [
+        {
+          "name": "Create customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalCustomerId\": \"EXT-100\",\n  \"fullName\": \"Mariama Ba\",\n  \"dateOfBirth\": \"1992-03-15\",\n  \"nationalId\": \"SN-12345\",\n  \"email\": \"mariama.ba@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdCustomerId\", json.data);",
+                  "  console.log(\"Customer cree : \" + json.data);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get customer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "description": "Variable de chemin: :id (utilise {{customerId}})."
+          }
+        },
+        {
+          "name": "Update customer",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Mariama Ba (MAJ)\",\n  \"dateOfBirth\": \"1992-03-15\",\n  \"email\": \"mariama.ba+maj@example.com\",\n  \"status\": 1,\n  \"kycStatus\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Status: 0=Inactive,1=Active,2=Blocked ; KycStatus: 0=NotVerified,1=InProgress,2=Verified,3=Rejected."
+          }
+        },
+        {
+          "name": "List customer subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/:id/subscriptions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                ":id",
+                "subscriptions"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create subscription for customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/:id/subscriptions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                ":id",
+                "subscriptions"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankAccountNumber\": \"SN012-1111-2222-3333\",\n  \"bankCode\": \"{{createdPartnerCode}}\",\n  \"phoneNumber\": \"+221770001122\",\n  \"phoneOperator\": \"Orange\",\n  \"expiresAt\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdSubscriptionId\", json.data);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Subscriptions",
+      "description": "Creation directe / consultation / changement de statut.",
+      "item": [
+        {
+          "name": "Create subscription (direct)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"partnerId\": \"{{partnerId}}\",\n  \"bankAccountNumber\": \"SN012-9999-8888-7777\",\n  \"bankCode\": \"BANK_DEMO\",\n  \"phoneNumber\": \"+221770003344\",\n  \"phoneOperator\": \"Wave\",\n  \"expiresAt\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Si partnerId est non null, il doit egaler le partenaire authentifie (sinon 403 PARTNER_MISMATCH)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdSubscriptionId\", json.data);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get subscription by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List subscriptions of current partner",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions?customerId=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions"
+              ],
+              "query": [
+                {
+                  "key": "customerId",
+                  "value": "",
+                  "description": "Optionnel : filtre par client."
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Change subscription status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions/:id/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                ":id",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Statuts : 0=Inactive,1=Active,2=Suspended."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Financial",
+      "description": "Initiation de transactions Bank/Wallet (debit/credit/cancel) + consultations.",
+      "item": [
+        {
+          "name": "Bank balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/bank/balance?subscriptionId={{subscriptionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "bank",
+                "balance"
+              ],
+              "query": [
+                {
+                  "key": "subscriptionId",
+                  "value": "{{subscriptionId}}",
+                  "description": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Wallet balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/wallet/balance?subscriptionId={{subscriptionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "wallet",
+                "balance"
+              ],
+              "query": [
+                {
+                  "key": "subscriptionId",
+                  "value": "{{subscriptionId}}",
+                  "description": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Bank KYC",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/bank/kyc?subscriptionId={{subscriptionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "bank",
+                "kyc"
+              ],
+              "query": [
+                {
+                  "key": "subscriptionId",
+                  "value": "{{subscriptionId}}",
+                  "description": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Wallet KYC",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/wallet/kyc?subscriptionId={{subscriptionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "wallet",
+                "kyc"
+              ],
+              "query": [
+                {
+                  "key": "subscriptionId",
+                  "value": "{{subscriptionId}}",
+                  "description": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Bank debit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/bank/debit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "bank",
+                "debit"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerTransactionRef\": \"BANK-DEBIT-{{$timestamp}}\",\n  \"bankAccount\": \"{{bankAccount}}\",\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"subscriptionId\": \"{{subscriptionId}}\",\n  \"amount\": 5000,\n  \"fees\": null,\n  \"currency\": \"XOF\",\n  \"description\": \"Bank debit demo\",\n  \"extraData\": {\n    \"channel\": \"MOBILE\",\n    \"deviceId\": \"POSTMAN-{{$randomUUID}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "bankAccount + phoneNumber OBLIGATOIRES. subscriptionId, fees et extraData optionnels."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdTransactionId\", json.data.transactionId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bank credit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/bank/credit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "bank",
+                "credit"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerTransactionRef\": \"BANK-CREDIT-{{$timestamp}}\",\n  \"bankAccount\": \"{{bankAccount}}\",\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"subscriptionId\": \"{{subscriptionId}}\",\n  \"amount\": 10000,\n  \"fees\": null,\n  \"currency\": \"XOF\",\n  \"description\": \"Bank credit demo\",\n  \"extraData\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdTransactionId\", json.data.transactionId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wallet debit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/wallet/debit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "wallet",
+                "debit"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerTransactionRef\": \"WAL-DEBIT-{{$timestamp}}\",\n  \"bankAccount\": \"{{bankAccount}}\",\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"subscriptionId\": \"{{subscriptionId}}\",\n  \"amount\": 2500,\n  \"fees\": 50,\n  \"currency\": \"XOF\",\n  \"description\": \"Wallet debit demo (fees override)\",\n  \"extraData\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdTransactionId\", json.data.transactionId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wallet credit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/wallet/credit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "wallet",
+                "credit"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerTransactionRef\": \"WAL-CREDIT-{{$timestamp}}\",\n  \"bankAccount\": \"{{bankAccount}}\",\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"subscriptionId\": \"{{subscriptionId}}\",\n  \"amount\": 7500,\n  \"fees\": null,\n  \"currency\": \"XOF\",\n  \"description\": \"Wallet credit demo\",\n  \"extraData\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdTransactionId\", json.data.transactionId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wallet cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/wallet/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "wallet",
+                "cancel"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerTransactionRef\": \"WAL-CANCEL-{{$timestamp}}\",\n  \"originalExternalRef\": \"{{externalRef}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Annule une transaction wallet par son externalRef."
+          }
+        },
+        {
+          "name": "Get transaction by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/transactions/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "transactions",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "description": "Variable de chemin: :id (utilise {{transactionId}})."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Accounting",
+      "description": "Schemas comptables et journaux.",
+      "item": [
+        {
+          "name": "Create schema",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounting/schemas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounting",
+                "schemas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"WalletCredit standard\",\n  \"partnerId\": null,\n  \"transactionType\": 3,\n  \"transactionSide\": 1,\n  \"channel\": 1,\n  \"priority\": 100,\n  \"description\": \"Schema pour les credits wallet\",\n  \"lines\": [\n    {\n      \"lineOrder\": 1,\n      \"accountCode\": \"411\",\n      \"accountType\": 0,\n      \"accountExpression\": null,\n      \"side\": 1,\n      \"amountFormula\": \"AMOUNT\",\n      \"label\": \"Compte client\",\n      \"isConditional\": false,\n      \"condition\": null\n    },\n    {\n      \"lineOrder\": 2,\n      \"accountCode\": \"707\",\n      \"accountType\": 0,\n      \"accountExpression\": null,\n      \"side\": 0,\n      \"amountFormula\": \"AMOUNT_NET\",\n      \"label\": \"Vente nette\",\n      \"isConditional\": false,\n      \"condition\": null\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "TransactionType: 0=BankDebit,1=BankCredit,2=WalletDebit,3=WalletCredit,4=WalletCancel. TransactionSide: 0=Debit,1=Credit. Channel: 0=Bank,1=Wallet. AccountType: 0=Fixed,1=Dynamic. LedgerSide: 0=Debit,1=Credit."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdSchemaId\", json.data);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List schemas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounting/schemas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounting",
+                "schemas"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get schema by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounting/schemas/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounting",
+                "schemas",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update schema",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounting/schemas/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounting",
+                "schemas",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"WalletCredit standard (MAJ)\",\n  \"isActive\": true,\n  \"priority\": 110,\n  \"description\": \"Schema mis a jour\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Add line to schema",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounting/schemas/:id/lines",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounting",
+                "schemas",
+                ":id",
+                "lines"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lineOrder\": 3,\n  \"accountCode\": \"70-FEE\",\n  \"accountType\": 0,\n  \"accountExpression\": null,\n  \"side\": 0,\n  \"amountFormula\": \"FEE\",\n  \"label\": \"Commission\",\n  \"isConditional\": true,\n  \"condition\": \"FEE > 0\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdLineId\", json.data);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove line from schema",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounting/schemas/:id/lines/:lineId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounting",
+                "schemas",
+                ":id",
+                "lines",
+                ":lineId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                },
+                {
+                  "key": "lineId",
+                  "value": "{{lineId}}",
+                  "description": "Path variable: lineId"
+                }
+              ]
+            },
+            "description": "Variables de chemin: :id (utilise {{schemaId}}), :lineId (utilise {{lineId}})."
+          }
+        },
+        {
+          "name": "Get journals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounting/journals?fromDate=2026-01-01&toDate=2026-12-31&page=1&pageSize=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounting",
+                "journals"
+              ],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2026-01-01",
+                  "description": "ISO-8601"
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-12-31",
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "50",
+                  "description": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "description": "KPIs admin et partenaire.",
+      "item": [
+        {
+          "name": "Admin summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "summary"
+              ]
+            },
+            "description": "Necessite role Admin/SuperAdmin."
+          }
+        },
+        {
+          "name": "Partner summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard/partners/:id/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "partners",
+                ":id",
+                "summary"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "description": "Reporting et exports CSV/XLSX.",
+      "item": [
+        {
+          "name": "Transactions report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/transactions?partnerId={{partnerId}}&fromDate=2026-01-01&toDate=2026-12-31&status=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "partnerId",
+                  "value": "{{partnerId}}",
+                  "description": "Optionnel."
+                },
+                {
+                  "key": "fromDate",
+                  "value": "2026-01-01",
+                  "description": ""
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-12-31",
+                  "description": ""
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "0=Pending,1=Success,2=Failed,3=Cancelled,4=Reversed"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Subscriptions report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/subscriptions?partnerId={{partnerId}}&status=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "subscriptions"
+              ],
+              "query": [
+                {
+                  "key": "partnerId",
+                  "value": "{{partnerId}}",
+                  "description": ""
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "0=Inactive,1=Active,2=Suspended"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Failure analysis",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/failure-analysis?fromDate=2026-01-01&toDate=2026-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "failure-analysis"
+              ],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2026-01-01",
+                  "description": ""
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-12-31",
+                  "description": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Accounting report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/accounting?fromDate=2026-01-01&toDate=2026-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "accounting"
+              ],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2026-01-01",
+                  "description": ""
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-12-31",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Necessite role Admin/SuperAdmin/Finance."
+          }
+        },
+        {
+          "name": "Partner account statement",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/partner-account-statement?partnerId={{partnerId}}&fromDate=2026-01-01&toDate=2026-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "partner-account-statement"
+              ],
+              "query": [
+                {
+                  "key": "partnerId",
+                  "value": "{{partnerId}}",
+                  "description": ""
+                },
+                {
+                  "key": "fromDate",
+                  "value": "2026-01-01",
+                  "description": ""
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-12-31",
+                  "description": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Export report (CSV/XLSX)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "export"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reportType\": \"transactions\",\n  \"format\": \"xlsx\",\n  \"partnerId\": \"{{partnerId}}\",\n  \"fromDate\": \"2026-01-01\",\n  \"toDate\": \"2026-12-31\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Format : \"csv\" ou \"xlsx\". Renvoie le fichier binaire."
+          }
+        }
+      ]
+    },
+    {
+      "name": "System",
+      "description": "Health-check, metrics Prometheus, Swagger.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Health-check global : SQL Server + APIs externes.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/metrics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metrics"
+              ]
+            },
+            "description": "Metriques Prometheus (text format).",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/swagger",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "swagger"
+              ]
+            },
+            "description": "Interface Swagger (HTML).",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
