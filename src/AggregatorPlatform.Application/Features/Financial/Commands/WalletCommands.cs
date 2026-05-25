@@ -16,10 +16,7 @@ public class WalletDebitValidator : AbstractValidator<WalletDebitCommand>
 {
     public WalletDebitValidator()
     {
-        RuleFor(x => x.Request.PartnerTransactionRef).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Request.SubscriptionId).NotEmpty();
-        RuleFor(x => x.Request.Amount).GreaterThan(0);
-        RuleFor(x => x.Request.Currency).NotEmpty().Length(3);
+        RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
     }
 }
 
@@ -44,17 +41,19 @@ public class WalletDebitCommandHandler : FinancialBaseHandler, IRequestHandler<W
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
         if (partner is null) return Result<TransactionDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
-        var sub = await EnsureActiveSubscriptionAsync(request.Request.SubscriptionId, request.PartnerId, cancellationToken);
-        if (sub is null) return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
+        var (sub, err) = await ResolveSubscriptionAsync(request.Request, request.PartnerId, cancellationToken);
+        if (err == "SUBSCRIPTION_INVALID")
+            return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
 
         var tx = await BuildTransactionAsync(request.Request, sub, request.PartnerId, TransactionType.WalletDebit, cancellationToken);
+
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
 
         try
         {
             var resp = await _wallet.DebitAsync(partner, new WalletTransactionRequest(
-                tx.PartnerTransactionRef, sub.PhoneNumber, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
+                tx.PartnerTransactionRef, request.Request.PhoneNumber!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
             await FinalizeAsync(tx, resp.ExternalRef,
                 success: resp.Status.Equals("SUCCESS", StringComparison.OrdinalIgnoreCase),
@@ -76,10 +75,7 @@ public class WalletCreditValidator : AbstractValidator<WalletCreditCommand>
 {
     public WalletCreditValidator()
     {
-        RuleFor(x => x.Request.PartnerTransactionRef).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Request.SubscriptionId).NotEmpty();
-        RuleFor(x => x.Request.Amount).GreaterThan(0);
-        RuleFor(x => x.Request.Currency).NotEmpty().Length(3);
+        RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
     }
 }
 
@@ -104,17 +100,19 @@ public class WalletCreditCommandHandler : FinancialBaseHandler, IRequestHandler<
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
         if (partner is null) return Result<TransactionDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
-        var sub = await EnsureActiveSubscriptionAsync(request.Request.SubscriptionId, request.PartnerId, cancellationToken);
-        if (sub is null) return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
+        var (sub, err) = await ResolveSubscriptionAsync(request.Request, request.PartnerId, cancellationToken);
+        if (err == "SUBSCRIPTION_INVALID")
+            return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
 
         var tx = await BuildTransactionAsync(request.Request, sub, request.PartnerId, TransactionType.WalletCredit, cancellationToken);
+
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
 
         try
         {
             var resp = await _wallet.CreditAsync(partner, new WalletTransactionRequest(
-                tx.PartnerTransactionRef, sub.PhoneNumber, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
+                tx.PartnerTransactionRef, request.Request.PhoneNumber!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
             await FinalizeAsync(tx, resp.ExternalRef,
                 success: resp.Status.Equals("SUCCESS", StringComparison.OrdinalIgnoreCase),
@@ -162,15 +160,25 @@ public class WalletCancelCommandHandler : FinancialBaseHandler, IRequestHandler<
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
         if (partner is null) return Result<TransactionDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
-        // Look up original transaction by external ref for context (mirror inverse logic in accounting engine)
+        // Recupere la transaction d'origine par sa ref externe pour assurer la coherence comptable.
         var original = (await Transactions.FindAsync(t => t.ExternalRef == request.Request.OriginalExternalRef && t.PartnerId == request.PartnerId, cancellationToken))
             .FirstOrDefault();
         if (original is null)
             return Result<TransactionDto>.Failure("ORIGINAL_NOT_FOUND", "Original transaction not found for the provided external reference.");
 
-        var tx = await BuildTransactionAsync(new TransactionRequest(request.Request.PartnerTransactionRef, original.SubscriptionId,
-            original.Amount, original.Currency, "Cancellation"),
-            original.Subscription!, request.PartnerId, TransactionType.WalletCancel, cancellationToken);
+        var cancelRequest = new TransactionRequest
+        {
+            PartnerTransactionRef = request.Request.PartnerTransactionRef,
+            SubscriptionId = original.SubscriptionId,
+            Amount = original.Amount,
+            Fees = original.FeeAmount,
+            Currency = original.Currency,
+            Description = "Cancellation",
+            BankAccount = original.BankAccount,
+            PhoneNumber = original.PhoneNumber,
+        };
+
+        var tx = await BuildTransactionAsync(cancelRequest, original.Subscription, request.PartnerId, TransactionType.WalletCancel, cancellationToken);
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
 

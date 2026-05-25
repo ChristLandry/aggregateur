@@ -62,7 +62,13 @@ public class BankDebitCommandHandlerTests
         txs.Setup(x => x.GetByPartnerRefAsync(partnerId, "ABC", It.IsAny<CancellationToken>()))
             .ReturnsAsync(existing);
 
-        var req = new TransactionRequest("ABC", Guid.NewGuid(), 1000, "XOF", null);
+        var req = new TransactionRequest
+        {
+            PartnerTransactionRef = "ABC",
+            SubscriptionId = Guid.NewGuid(),
+            Amount = 1000,
+            Currency = "XOF"
+        };
         var result = await handler.Handle(new BankDebitCommand(partnerId, req), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -78,7 +84,13 @@ public class BankDebitCommandHandlerTests
         partners.Setup(x => x.GetByIdAsync(partnerId, It.IsAny<CancellationToken>())).ReturnsAsync(new Partner { PartnerId = partnerId, Status = PartnerStatus.Active });
         subs.Setup(x => x.GetByIdAsync(It.IsAny<object>(), It.IsAny<CancellationToken>())).ReturnsAsync((Subscription?)null);
 
-        var req = new TransactionRequest("REF1", Guid.NewGuid(), 1000, "XOF", null);
+        var req = new TransactionRequest
+        {
+            PartnerTransactionRef = "REF1",
+            SubscriptionId = Guid.NewGuid(),
+            Amount = 1000,
+            Currency = "XOF"
+        };
         var result = await handler.Handle(new BankDebitCommand(partnerId, req), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
@@ -105,7 +117,13 @@ public class BankDebitCommandHandlerTests
         bank.Setup(x => x.DebitAsync(It.IsAny<Partner>(), It.IsAny<BankTransactionRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new BankTransactionResponse("EXT-1", "FAILED", "INSUFFICIENT_FUNDS"));
 
-        var req = new TransactionRequest("REF2", subscriptionId, 1000, "XOF", null);
+        var req = new TransactionRequest
+        {
+            PartnerTransactionRef = "REF2",
+            SubscriptionId = subscriptionId,
+            Amount = 1000,
+            Currency = "XOF"
+        };
         var result = await handler.Handle(new BankDebitCommand(partnerId, req), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();

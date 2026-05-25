@@ -4,6 +4,7 @@ using AggregatorPlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AggregatorPlatform.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AggregatorDbContext))]
-    partial class AggregatorDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260525161853_ExtendTransactionPayload")]
+    partial class ExtendTransactionPayload
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -479,11 +482,6 @@ namespace AggregatorPlatform.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("LastMovementAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("PartnerBankAccount")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
 
                     b.Property<Guid>("PartnerId")
                         .HasColumnType("uniqueidentifier");

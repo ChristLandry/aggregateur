@@ -46,7 +46,27 @@
       "Bash(powershell.exe -Command \"sqlcmd -S '\\(localdb\\)\\\\MSSQLLocalDB' -d AggregatorDB -Q \\\\\"UPDATE Partners SET BaseUrl = 'http://localhost:5080' WHERE PartnerCode IN \\('BANK_DEMO','WALLET_DEMO'\\); SELECT PartnerCode, BaseUrl FROM Partners\\\\\"\")",
       "Bash(powershell.exe -Command '\\(Get-NetTCPConnection -LocalPort 5080 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess\\) | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; '\\\\''killed'\\\\''')",
       "Bash(powershell.exe -Command \"sqlcmd -S '\\(localdb\\)\\\\MSSQLLocalDB' -d AggregatorDB -Q \\\\\"SELECT 'Partners' AS T, COUNT\\(*\\) AS N FROM Partners UNION ALL SELECT 'Customers', COUNT\\(*\\) FROM Customers UNION ALL SELECT 'Subscriptions', COUNT\\(*\\) FROM Subscriptions UNION ALL SELECT 'Transactions', COUNT\\(*\\) FROM Transactions UNION ALL SELECT 'Tx Success', COUNT\\(*\\) FROM Transactions WHERE Status=1 UNION ALL SELECT 'Tx Failed', COUNT\\(*\\) FROM Transactions WHERE Status=2 UNION ALL SELECT 'JournalEntries', COUNT\\(*\\) FROM JournalEntries UNION ALL SELECT 'JournalLines', COUNT\\(*\\) FROM JournalLines UNION ALL SELECT 'Movements', COUNT\\(*\\) FROM PartnerAccountMovements UNION ALL SELECT 'AuditLogs', COUNT\\(*\\) FROM AuditLogs UNION ALL SELECT 'WebhookLogs', COUNT\\(*\\) FROM WebhookLogs UNION ALL SELECT 'RefreshTokens', COUNT\\(*\\) FROM RefreshTokens\\\\\" -W -h-1\")",
-      "Bash(powershell.exe -Command \"sqlcmd -S '\\(localdb\\)\\\\MSSQLLocalDB' -d AggregatorDB -Q \\\\\"SELECT TOP 6 PartnerTransactionRef, TransactionType, Amount, FeeAmount, NetAmount, Status, FailureReason, AccountingStatus, InitiatedAt FROM Transactions ORDER BY InitiatedAt DESC\\\\\" -W -h-1\")"
+      "Bash(powershell.exe -Command \"sqlcmd -S '\\(localdb\\)\\\\MSSQLLocalDB' -d AggregatorDB -Q \\\\\"SELECT TOP 6 PartnerTransactionRef, TransactionType, Amount, FeeAmount, NetAmount, Status, FailureReason, AccountingStatus, InitiatedAt FROM Transactions ORDER BY InitiatedAt DESC\\\\\" -W -h-1\")",
+      "Bash(dotnet --list-sdks)",
+      "Bash(dotnet list *)",
+      "Bash(dotnet package *)",
+      "Bash(python -c \"import sys, json; data = json.load\\(sys.stdin\\); pkgs = data['searchResult'][1]['packages']; v = [p['version'] for p in pkgs if p['version'].startswith\\('8.'\\)]; print\\('\\\\n'.join\\(v\\)\\)\")",
+      "Bash(python -c \"import sys, json; data = json.load\\(sys.stdin\\); pkgs = data['searchResult'][1]['packages']; v = [p['version'] for p in pkgs if p['version'].startswith\\('8.'\\)]; print\\(v[-3:]\\)\")",
+      "Bash(python -c \"import sys, json; data = json.load\\(sys.stdin\\); pkgs = data['searchResult'][1]['packages']; v = [p['version'] for p in pkgs]; print\\(v[-5:]\\)\")",
+      "Bash(python -c \"import sys, json; data = json.load\\(sys.stdin\\); pkgs = data['searchResult'][1]['packages']; v = [p['version'] for p in pkgs if p['version'].startswith\\('17.'\\)]; print\\(v[-3:]\\)\")",
+      "Bash(dotnet test *)",
+      "PowerShell(sqlcmd -S 'localhost,1433' -U sa -P 'P@ssw0rd' -C -Q \"SELECT @@VERSION;\")",
+      "PowerShell(Get-NetTCPConnection -State Listen | Where-Object { $_.OwningProcess -in \\(Get-Process sqlservr -ErrorAction SilentlyContinue\\).Id } | Select-Object LocalAddress, LocalPort, OwningProcess | Format-Table -AutoSize)",
+      "Bash(where npm *)",
+      "Bash(where node *)",
+      "Bash(npm root *)",
+      "Bash(npm list *)",
+      "Bash(npm install *)",
+      "Bash(where pandoc *)",
+      "Bash(ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://localhost:5081 dotnet run --project src/AggregatorPlatform.API --no-build)",
+      "Bash(curl -sS -o /dev/null -w \"health=%{http_code}\\\\n\" http://localhost:5081/health)",
+      "Bash(curl -sS -X POST http://localhost:5081/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"superadmin\",\"password\":\"ChangeMe123!\"}' -w \"\\\\nstatus=%{http_code}\\\\n\")",
+      "Bash(git check-ignore *)"
     ]
   }
 }

@@ -21,6 +21,7 @@ public record CreatePartnerRequest(
     string Name,
     string BaseUrl,
     string Currency,
+    string PartnerBankAccount,
     string? AccountCode,
     string? WebhookUrl,
     int RateLimitPerMin,
@@ -43,6 +44,7 @@ public record ChangePartnerStatusRequest(PartnerStatus Status);
 public record PartnerAccountDto(
     Guid AccountId,
     Guid PartnerId,
+    string PartnerBankAccount,
     decimal Balance,
     string Currency,
     DateTime? LastMovementAt);

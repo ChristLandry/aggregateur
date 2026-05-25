@@ -8,8 +8,18 @@ public class Transaction : AuditableEntity
     public Guid TransactionId { get; set; } = Guid.NewGuid();
     public string PartnerTransactionRef { get; set; } = string.Empty;
     public Guid PartnerId { get; set; }
-    public Guid SubscriptionId { get; set; }
-    public Guid CustomerId { get; set; }
+
+    /// <summary>
+    /// Abonnement source de la transaction. Nullable : une transaction peut etre initiee
+    /// avec uniquement BankAccount / PhoneNumber sans abonnement enrole.
+    /// </summary>
+    public Guid? SubscriptionId { get; set; }
+
+    /// <summary>
+    /// Client porteur. Nullable : derive automatiquement de la subscription si renseignee,
+    /// sinon laisse null pour les flux "anonymous-by-account".
+    /// </summary>
+    public Guid? CustomerId { get; set; }
     public TransactionType TransactionType { get; set; }
     public decimal Amount { get; set; }
     public decimal FeeAmount { get; set; }
@@ -22,6 +32,15 @@ public class Transaction : AuditableEntity
     public DateTime InitiatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
     public string? ExternalRef { get; set; }
+
+    /// <summary>Compte bancaire cible (chiffre AES-256 au repos).</summary>
+    public string? BankAccount { get; set; }
+
+    /// <summary>Numero de telephone wallet cible (chiffre AES-256 au repos).</summary>
+    public string? PhoneNumber { get; set; }
+
+    /// <summary>Donnees libres serialisees JSON (origine canal, metadata partenaire, etc.).</summary>
+    public string? ExtraData { get; set; }
 
     public Partner? Partner { get; set; }
     public Subscription? Subscription { get; set; }

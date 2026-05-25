@@ -38,6 +38,12 @@ public class PartnerAccountConfiguration : IEntityTypeConfiguration<PartnerAccou
         b.HasIndex(x => x.PartnerId).IsUnique();
         b.Property(x => x.Balance).HasPrecision(18, 4);
         b.Property(x => x.Currency).IsRequired().HasMaxLength(3);
+
+        // Numero de compte bancaire du partenaire — chiffre AES-256 au repos (donnee sensible).
+        b.Property(x => x.PartnerBankAccount)
+            .IsRequired()
+            .HasMaxLength(500)
+            .HasConversion(EncryptionValueConverter.ForString());
     }
 }
 

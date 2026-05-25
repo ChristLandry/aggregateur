@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AggregatorPlatform.Domain.Enums;
 
 namespace AggregatorPlatform.Application.DTOs;
@@ -6,8 +7,8 @@ public record TransactionDto(
     Guid TransactionId,
     string PartnerTransactionRef,
     Guid PartnerId,
-    Guid SubscriptionId,
-    Guid CustomerId,
+    Guid? SubscriptionId,
+    Guid? CustomerId,
     TransactionType TransactionType,
     decimal Amount,
     decimal FeeAmount,
@@ -18,14 +19,52 @@ public record TransactionDto(
     AccountingStatus AccountingStatus,
     DateTime InitiatedAt,
     DateTime? CompletedAt,
-    string? ExternalRef);
+    string? ExternalRef,
+    string? BankAccount,
+    string? PhoneNumber,
+    string? ExtraData);
 
-public record TransactionRequest(
-    string PartnerTransactionRef,
-    Guid SubscriptionId,
-    decimal Amount,
-    string Currency,
-    string? Description);
+/// <summary>
+/// Payload generique d'initiation d'une transaction (debit/credit, bank/wallet).
+/// </summary>
+/// <remarks>
+/// Au moins un identifiant de cible est requis :
+///   - <see cref="SubscriptionId"/> (cas standard : l'abonnement portait deja le compte et/ou le numero),
+///   - ou <see cref="BankAccount"/> / <see cref="PhoneNumber"/> (cible explicite hors abonnement).
+/// </remarks>
+public record TransactionRequest
+{
+    /// <summary>Reference d'idempotence cote partenaire (obligatoire).</summary>
+    public string PartnerTransactionRef { get; init; } = string.Empty;
+
+    /// <summary>Numero de compte bancaire cible (alimente la transaction si pas de subscription).</summary>
+    public string? BankAccount { get; init; }
+
+    /// <summary>Numero de telephone wallet cible (alimente la transaction si pas de subscription).</summary>
+    public string? PhoneNumber { get; init; }
+
+    /// <summary>Abonnement client/partenaire — optionnel : si fourni, BankAccount/PhoneNumber sont resolus depuis lui.</summary>
+    public Guid? SubscriptionId { get; init; }
+
+    /// <summary>Montant brut (obligatoire, > 0).</summary>
+    public decimal Amount { get; init; }
+
+    /// <summary>
+    /// Frais imposes par l'appelant (optionnel).
+    /// Si null : calcule automatiquement via <c>IFeeCalculator</c>.
+    /// Si renseigne : valeur respectee telle quelle (doit etre >= 0).
+    /// </summary>
+    public decimal? Fees { get; init; }
+
+    /// <summary>Devise ISO-4217, 3 caracteres (obligatoire).</summary>
+    public string Currency { get; init; } = string.Empty;
+
+    /// <summary>Libelle libre.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Donnees additionnelles libres serialisees en JSON (optionnel).</summary>
+    public JsonElement? ExtraData { get; init; }
+}
 
 public record CancelTransactionRequest(string PartnerTransactionRef, string OriginalExternalRef);
 

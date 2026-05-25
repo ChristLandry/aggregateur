@@ -16,10 +16,7 @@ public class BankDebitValidator : AbstractValidator<BankDebitCommand>
 {
     public BankDebitValidator()
     {
-        RuleFor(x => x.Request.PartnerTransactionRef).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Request.SubscriptionId).NotEmpty();
-        RuleFor(x => x.Request.Amount).GreaterThan(0);
-        RuleFor(x => x.Request.Currency).NotEmpty().Length(3);
+        RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
     }
 }
 
@@ -44,17 +41,19 @@ public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<Ban
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
         if (partner is null) return Result<TransactionDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
-        var sub = await EnsureActiveSubscriptionAsync(request.Request.SubscriptionId, request.PartnerId, cancellationToken);
-        if (sub is null) return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
+        var (sub, err) = await ResolveSubscriptionAsync(request.Request, request.PartnerId, cancellationToken);
+        if (err == "SUBSCRIPTION_INVALID")
+            return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
 
         var tx = await BuildTransactionAsync(request.Request, sub, request.PartnerId, TransactionType.BankDebit, cancellationToken);
+
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
 
         try
         {
             var resp = await _bank.DebitAsync(partner, new BankTransactionRequest(
-                tx.PartnerTransactionRef, sub.BankAccountNumber, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
+                tx.PartnerTransactionRef, request.Request.BankAccount!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
             await FinalizeAsync(tx, resp.ExternalRef,
                 success: resp.Status.Equals("SUCCESS", StringComparison.OrdinalIgnoreCase),
@@ -76,10 +75,7 @@ public class BankCreditValidator : AbstractValidator<BankCreditCommand>
 {
     public BankCreditValidator()
     {
-        RuleFor(x => x.Request.PartnerTransactionRef).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Request.SubscriptionId).NotEmpty();
-        RuleFor(x => x.Request.Amount).GreaterThan(0);
-        RuleFor(x => x.Request.Currency).NotEmpty().Length(3);
+        RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
     }
 }
 
@@ -104,17 +100,19 @@ public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<Ba
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
         if (partner is null) return Result<TransactionDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
-        var sub = await EnsureActiveSubscriptionAsync(request.Request.SubscriptionId, request.PartnerId, cancellationToken);
-        if (sub is null) return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
+        var (sub, err) = await ResolveSubscriptionAsync(request.Request, request.PartnerId, cancellationToken);
+        if (err == "SUBSCRIPTION_INVALID")
+            return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
 
         var tx = await BuildTransactionAsync(request.Request, sub, request.PartnerId, TransactionType.BankCredit, cancellationToken);
+
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
 
         try
         {
             var resp = await _bank.CreditAsync(partner, new BankTransactionRequest(
-                tx.PartnerTransactionRef, sub.BankAccountNumber, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
+                tx.PartnerTransactionRef, request.Request.BankAccount!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
             await FinalizeAsync(tx, resp.ExternalRef,
                 success: resp.Status.Equals("SUCCESS", StringComparison.OrdinalIgnoreCase),

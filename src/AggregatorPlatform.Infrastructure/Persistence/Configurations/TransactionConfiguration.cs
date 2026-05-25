@@ -22,6 +22,16 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         b.Property(x => x.FailureReason).HasMaxLength(500);
         b.Property(x => x.ExternalRef).HasMaxLength(200);
 
+        // Champs ajoutes au payload : chiffres au repos
+        b.Property(x => x.BankAccount)
+            .HasMaxLength(500)
+            .HasConversion(EncryptionValueConverter.ForNullableString());
+        b.Property(x => x.PhoneNumber)
+            .HasMaxLength(500)
+            .HasConversion(EncryptionValueConverter.ForNullableString());
+        b.Property(x => x.ExtraData)
+            .HasColumnType("nvarchar(max)");
+
         b.HasOne(x => x.Partner).WithMany(p => p.Transactions).HasForeignKey(x => x.PartnerId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.Subscription).WithMany(s => s.Transactions).HasForeignKey(x => x.SubscriptionId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);

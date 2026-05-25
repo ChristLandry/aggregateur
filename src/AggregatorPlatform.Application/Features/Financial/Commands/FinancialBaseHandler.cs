@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AggregatorPlatform.Application.Common;
 using AggregatorPlatform.Application.DTOs;
 using AggregatorPlatform.Application.Interfaces;
@@ -54,29 +55,50 @@ public abstract class FinancialBaseHandler
         return null;
     }
 
-    protected async Task<Subscription?> EnsureActiveSubscriptionAsync(Guid subscriptionId, Guid partnerId, CancellationToken ct)
+    /// <summary>
+    /// Resout l'abonnement (optionnel) lie a la requete. BankAccount et PhoneNumber etant
+    /// desormais obligatoires dans le payload, l'absence de subscription est un cas valide.
+    /// Retourne (subscription?, errorCode?) :
+    ///   - ok subscription : trouve, actif et appartenant au partenaire
+    ///   - ok null         : aucun SubscriptionId fourni
+    ///   - erreur          : SubscriptionId fourni mais invalide
+    /// </summary>
+    protected async Task<(Subscription? Subscription, string? ErrorCode)> ResolveSubscriptionAsync(
+        TransactionRequest request, Guid partnerId, CancellationToken ct)
     {
-        var sub = await Subscriptions.GetByIdAsync(subscriptionId, ct);
-        if (sub is null) return null;
-        if (sub.PartnerId != partnerId) return null;
-        if (sub.Status != SubscriptionStatus.Active) return null;
-        return sub;
+        if (request.SubscriptionId is null)
+            return (null, null);
+
+        var sub = await Subscriptions.GetByIdAsync(request.SubscriptionId.Value, ct);
+        if (sub is null) return (null, "SUBSCRIPTION_INVALID");
+        if (sub.PartnerId != partnerId) return (null, "SUBSCRIPTION_INVALID");
+        if (sub.Status != SubscriptionStatus.Active) return (null, "SUBSCRIPTION_INVALID");
+        return (sub, null);
     }
 
+    /// <summary>
+    /// Construit la transaction en utilisant en priorite les valeurs du payload, puis celles de l'abonnement.
+    /// Les frais sont surchargees par <see cref="TransactionRequest.Fees"/> si fourni, sinon calcules.
+    /// </summary>
     protected async Task<Transaction> BuildTransactionAsync(
         TransactionRequest request,
-        Subscription subscription,
+        Subscription? subscription,
         Guid partnerId,
         TransactionType type,
         CancellationToken ct)
     {
-        var fee = await FeeCalculator.CalculateAsync(partnerId, type, request.Amount, ct);
+        var fee = request.Fees ?? await FeeCalculator.CalculateAsync(partnerId, type, request.Amount, ct);
+
+        // BankAccount et PhoneNumber sont valides en entree par le validator.
+        var bankAccount = request.BankAccount;
+        var phoneNumber = request.PhoneNumber;
+
         return new Transaction
         {
             PartnerTransactionRef = request.PartnerTransactionRef,
             PartnerId = partnerId,
-            SubscriptionId = subscription.SubscriptionId,
-            CustomerId = subscription.CustomerId,
+            SubscriptionId = subscription?.SubscriptionId,
+            CustomerId = subscription?.CustomerId,
             TransactionType = type,
             Amount = request.Amount,
             FeeAmount = fee,
@@ -84,8 +106,18 @@ public abstract class FinancialBaseHandler
             Currency = request.Currency,
             Status = TransactionStatus.Pending,
             AccountingStatus = AccountingStatus.Pending,
-            InitiatedAt = DateTime.UtcNow
+            InitiatedAt = DateTime.UtcNow,
+            BankAccount = bankAccount,
+            PhoneNumber = phoneNumber,
+            ExtraData = SerializeExtraData(request.ExtraData),
         };
+    }
+
+    protected static string? SerializeExtraData(JsonElement? extra)
+    {
+        if (extra is null) return null;
+        if (extra.Value.ValueKind == JsonValueKind.Null || extra.Value.ValueKind == JsonValueKind.Undefined) return null;
+        return extra.Value.GetRawText();
     }
 
     protected async Task FinalizeAsync(Transaction tx, string? externalRef, bool success, string? failureReason, CancellationToken ct)
@@ -114,4 +146,3 @@ public abstract class FinancialBaseHandler
         }, ct);
     }
 }
-
