@@ -51,13 +51,11 @@ public record CreateSubscriptionRequest(
 
 /// <summary>
 /// Payload pour la creation directe d'une souscription via POST /api/v1/subscriptions.
-/// Inclut CustomerId ET PartnerId pour rendre le lien explicite.
-/// Si PartnerId est null, on retombe sur le partenaire courant (X-Partner-Id).
-/// Si PartnerId est fourni, il doit correspondre au partenaire courant (sinon 403).
+/// Le PartnerId N'EST PAS dans le payload : il est resolu exclusivement depuis le header
+/// X-Partner-Id (middleware PartnerAuth). Toute tentative de surcharge cote client est ignoree.
 /// </summary>
 public record CreateSubscriptionDirectRequest(
     Guid CustomerId,
-    Guid? PartnerId,
     string BankAccountNumber,
     string BankCode,
     string PhoneNumber,

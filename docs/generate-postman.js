@@ -348,14 +348,13 @@ const subscriptionItems = [
     path: '/api/v1/subscriptions',
     body: {
       customerId: '{{customerId}}',
-      partnerId: '{{partnerId}}',
       bankAccountNumber: 'SN012-9999-8888-7777',
       bankCode: 'BANK_DEMO',
       phoneNumber: '+221770003344',
       phoneOperator: 'Wave',
       expiresAt: null,
     },
-    description: 'Si partnerId est non null, il doit egaler le partenaire authentifie (sinon 403 PARTNER_MISMATCH).',
+    description: 'Le partenaire est resolu uniquement depuis le header X-Partner-Id ; il n\\u2019est PAS attendu dans le payload.',
     tests: `
 const json = pm.response.json();
 if (json.success && json.data) {

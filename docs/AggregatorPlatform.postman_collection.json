@@ -881,14 +881,14 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"partnerId\": \"{{partnerId}}\",\n  \"bankAccountNumber\": \"SN012-9999-8888-7777\",\n  \"bankCode\": \"BANK_DEMO\",\n  \"phoneNumber\": \"+221770003344\",\n  \"phoneOperator\": \"Wave\",\n  \"expiresAt\": null\n}",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"bankAccountNumber\": \"SN012-9999-8888-7777\",\n  \"bankCode\": \"BANK_DEMO\",\n  \"phoneNumber\": \"+221770003344\",\n  \"phoneOperator\": \"Wave\",\n  \"expiresAt\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "Si partnerId est non null, il doit egaler le partenaire authentifie (sinon 403 PARTNER_MISMATCH)."
+            "description": "Le partenaire est resolu uniquement depuis le header X-Partner-Id ; il n\\u2019est PAS attendu dans le payload."
           },
           "event": [
             {

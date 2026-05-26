@@ -17,23 +17,14 @@ public class SubscriptionController : BaseApiController
     public SubscriptionController(ICurrentPartnerService currentPartner) => _currentPartner = currentPartner;
 
     /// <summary>
-    /// Cree une nouvelle souscription pour un client existant et rattachee au partenaire courant.
-    /// Le partenaire est resolu depuis le header X-Partner-Id (middleware PartnerAuth).
-    /// Le PartnerId peut etre fourni dans le body pour rendre le lien explicite, mais il
-    /// DOIT correspondre au partenaire authentifie sinon la requete est rejetee (403).
+    /// Cree une nouvelle souscription pour un client existant.
+    /// Le partenaire est resolu UNIQUEMENT depuis le header X-Partner-Id
+    /// (middleware PartnerAuth). Aucun PartnerId n'est attendu dans le body.
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<ApiResponse<Guid>>> Create([FromBody] CreateSubscriptionDirectRequest request, CancellationToken ct)
     {
         var currentPartnerId = _currentPartner.PartnerId!.Value;
-
-        // Validation explicite du lien Subscription <-> Partner.
-        if (request.PartnerId.HasValue && request.PartnerId.Value != currentPartnerId)
-        {
-            return StatusCode(403, ApiResponse<Guid>.Fail(
-                "PARTNER_MISMATCH",
-                $"Le PartnerId fourni dans le body ({request.PartnerId}) ne correspond pas au partenaire authentifie ({currentPartnerId})."));
-        }
 
         var subRequest = new CreateSubscriptionRequest(
             request.BankAccountNumber,
