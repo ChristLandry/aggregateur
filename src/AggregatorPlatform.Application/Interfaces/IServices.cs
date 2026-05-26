@@ -57,11 +57,6 @@ public interface IFormulaEvaluator
     string EvaluateExpression(string expression, IDictionary<string, object?> context);
 }
 
-public interface IFeeCalculator
-{
-    Task<decimal> CalculateAsync(Guid partnerId, Domain.Enums.TransactionType type, decimal amount, CancellationToken cancellationToken = default);
-}
-
 public interface ICurrentPartnerService
 {
     Guid? PartnerId { get; }

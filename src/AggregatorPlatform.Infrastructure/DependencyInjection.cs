@@ -43,7 +43,6 @@ public static class DependencyInjection
         // Services
         services.AddSingleton<IEncryptionService, EncryptionService>();
         services.AddScoped<IFormulaEvaluator, FormulaEvaluator>();
-        services.AddScoped<IFeeCalculator, FeeCalculator>();
         services.AddScoped<IAccountingEngine, AccountingEngine>();
         services.AddScoped<IWebhookService, WebhookService>();
         services.AddSingleton<ITwoFactorService, TwoFactorService>();

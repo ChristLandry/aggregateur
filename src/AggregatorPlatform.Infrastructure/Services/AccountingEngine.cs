@@ -2,34 +2,47 @@ using AggregatorPlatform.Application.Interfaces;
 using AggregatorPlatform.Domain.Entities;
 using AggregatorPlatform.Domain.Enums;
 using AggregatorPlatform.Domain.Interfaces;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace AggregatorPlatform.Infrastructure.Services;
 
+/// <summary>
+/// Applique un schema comptable a une transaction pour generer N mouvements.
+///
+/// Regles :
+///   - Une transaction declenche le schema applicable au triplet (PartnerId, TransactionType, TransactionSide, Channel).
+///   - Chaque ligne du schema est evaluee dans l'ordre LineOrder croissant.
+///   - Variables disponibles dans les formules :
+///       AMOUNT, AMOUNT_NET, FEE, PARTNER.Balance, CUSTOMER.PhoneNumber,
+///       TX.Currency, TX.Type, et L1, L2, ... LN (montants deja calcules des lignes precedentes).
+///   - Les lignes marquees IsFee sont sommees dans Transaction.FeeAmount,
+///     Transaction.NetAmount est recalcule (= Amount - FeeAmount).
+///   - Chaque ligne genere un Movement (account, signed amount, label, code, exploitant, reference, transactionDate).
+///   - Le solde miroir du partenaire (PartnerAccount) est ajuste via PartnerAccountMovement.
+/// </summary>
 public class AccountingEngine : IAccountingEngine
 {
     private readonly IAccountingSchemaRepository _schemas;
-    private readonly IRepository<JournalEntry> _entries;
+    private readonly IRepository<Movement> _movements;
     private readonly IPartnerAccountRepository _accounts;
-    private readonly IRepository<PartnerAccountMovement> _movements;
+    private readonly IRepository<PartnerAccountMovement> _accountMovements;
     private readonly IPartnerRepository _partners;
     private readonly IFormulaEvaluator _evaluator;
     private readonly ILogger<AccountingEngine> _logger;
 
     public AccountingEngine(
         IAccountingSchemaRepository schemas,
-        IRepository<JournalEntry> entries,
+        IRepository<Movement> movements,
         IPartnerAccountRepository accounts,
-        IRepository<PartnerAccountMovement> movements,
+        IRepository<PartnerAccountMovement> accountMovements,
         IPartnerRepository partners,
         IFormulaEvaluator evaluator,
         ILogger<AccountingEngine> logger)
     {
         _schemas = schemas;
-        _entries = entries;
-        _accounts = accounts;
         _movements = movements;
+        _accounts = accounts;
+        _accountMovements = accountMovements;
         _partners = partners;
         _evaluator = evaluator;
         _logger = logger;
@@ -44,7 +57,7 @@ public class AccountingEngine : IAccountingEngine
 
         if (schema is null)
         {
-            _logger.LogWarning("No accounting schema found for tx {TxId} type={Type} side={Side} channel={Channel}",
+            _logger.LogWarning("No accounting schema for tx {TxId} type={Type} side={Side} channel={Channel}",
                 transaction.TransactionId, transaction.TransactionType, side, channel);
             transaction.AccountingStatus = AccountingStatus.Pending;
             return;
@@ -54,12 +67,8 @@ public class AccountingEngine : IAccountingEngine
         var partnerAccount = await _accounts.GetByPartnerIdAsync(transaction.PartnerId, cancellationToken);
         var context = BuildContext(transaction, partner, partnerAccount, transaction.Subscription);
 
-        var entry = new JournalEntry
-        {
-            TransactionId = transaction.TransactionId,
-            SchemaId = schema.SchemaId,
-            EntryDate = DateTime.UtcNow
-        };
+        var generated = new List<Movement>();
+        decimal feeTotal = 0m;
 
         try
         {
@@ -75,42 +84,65 @@ public class AccountingEngine : IAccountingEngine
                     ? _evaluator.EvaluateExpression(line.AccountExpression, context)
                     : line.AccountCode;
 
-                var amount = _evaluator.EvaluateAmount(line.AmountFormula, context);
+                var rawAmount = _evaluator.EvaluateAmount(line.AmountFormula, context);
 
-                entry.Lines.Add(new JournalLine
+                // Convention : amount signe (negatif pour debit, positif pour credit).
+                var signedAmount = line.Side == LedgerSide.Debit ? -Math.Abs(rawAmount) : Math.Abs(rawAmount);
+
+                var movement = new Movement
                 {
-                    AccountCode = accountCode,
+                    TransactionId = transaction.TransactionId,
+                    SchemaId = schema.SchemaId,
+                    LineOrder = line.LineOrder,
+                    Account = accountCode,
+                    Amount = signedAmount,
                     Side = line.Side,
-                    Amount = amount,
-                    Label = line.Label
-                });
+                    Label = line.Label,
+                    Code = line.Code,
+                    Exploitant = line.Exploitant,
+                    Reference = transaction.PartnerTransactionRef,
+                    TransactionDate = DateTime.UtcNow,
+                    IsFee = line.IsFee,
+                };
+                generated.Add(movement);
+
+                // Expose le montant calcule (valeur absolue) aux lignes suivantes via L<N>.
+                context[$"L{line.LineOrder}"] = Math.Abs(rawAmount);
+
+                if (line.IsFee) feeTotal += Math.Abs(rawAmount);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Accounting schema evaluation failed for tx {TxId}", transaction.TransactionId);
+            _logger.LogError(ex, "Schema evaluation failed for tx {TxId}", transaction.TransactionId);
             transaction.AccountingStatus = AccountingStatus.Error;
             return;
         }
 
-        entry.TotalDebit = entry.Lines.Where(l => l.Side == LedgerSide.Debit).Sum(l => l.Amount);
-        entry.TotalCredit = entry.Lines.Where(l => l.Side == LedgerSide.Credit).Sum(l => l.Amount);
-        entry.IsBalanced = entry.TotalDebit == entry.TotalCredit;
-
-        if (!entry.IsBalanced)
+        // Si aucune ligne IsFee : conserve la valeur deja presente (override de la requete par exemple).
+        if (generated.Any(m => m.IsFee))
         {
-            _logger.LogError("Journal entry is unbalanced for tx {TxId}: D={Debit} C={Credit}",
-                transaction.TransactionId, entry.TotalDebit, entry.TotalCredit);
+            transaction.FeeAmount = feeTotal;
+            transaction.NetAmount = transaction.Amount - feeTotal;
+        }
+
+        // Verification d'equilibre comptable : somme des montants signes doit etre 0.
+        var balance = generated.Sum(m => m.Amount);
+        if (balance != 0m)
+        {
+            _logger.LogError("Movements unbalanced for tx {TxId}: signed sum = {Sum} (expected 0)",
+                transaction.TransactionId, balance);
             transaction.AccountingStatus = AccountingStatus.Error;
             return;
         }
 
-        await _entries.AddAsync(entry, cancellationToken);
+        foreach (var m in generated)
+            await _movements.AddAsync(m, cancellationToken);
 
         transaction.SchemaId = schema.SchemaId;
         transaction.AccountingStatus = AccountingStatus.Applied;
 
-        // Update mirror account
+        // Met a jour le solde miroir du partenaire.
         if (partnerAccount is not null)
         {
             await UpdateMirrorAccountAsync(transaction, partnerAccount, cancellationToken);
@@ -121,11 +153,11 @@ public class AccountingEngine : IAccountingEngine
     {
         var (movType, amount) = tx.TransactionType switch
         {
-            TransactionType.BankDebit => (MovementType.Credit, tx.NetAmount),
-            TransactionType.WalletDebit => (MovementType.Credit, tx.NetAmount),
-            TransactionType.BankCredit => (MovementType.Debit, tx.NetAmount),
-            TransactionType.WalletCredit => (MovementType.Debit, tx.NetAmount),
-            TransactionType.WalletCancel => (MovementType.Debit, tx.NetAmount),
+            TransactionType.BankDebit    => (MovementType.Credit, tx.NetAmount),
+            TransactionType.WalletDebit  => (MovementType.Credit, tx.NetAmount),
+            TransactionType.BankCredit   => (MovementType.Debit,  tx.NetAmount),
+            TransactionType.WalletCredit => (MovementType.Debit,  tx.NetAmount),
+            TransactionType.WalletCancel => (MovementType.Debit,  tx.NetAmount),
             _ => (MovementType.Credit, 0m)
         };
 
@@ -136,7 +168,7 @@ public class AccountingEngine : IAccountingEngine
         account.LastMovementAt = DateTime.UtcNow;
         _accounts.Update(account);
 
-        await _movements.AddAsync(new PartnerAccountMovement
+        await _accountMovements.AddAsync(new PartnerAccountMovement
         {
             PartnerId = tx.PartnerId,
             TransactionId = tx.TransactionId,
@@ -151,9 +183,9 @@ public class AccountingEngine : IAccountingEngine
 
     private static (TransactionSide, Channel) ResolveSideChannel(TransactionType type) => type switch
     {
-        TransactionType.BankDebit => (TransactionSide.Debit, Channel.Bank),
-        TransactionType.BankCredit => (TransactionSide.Credit, Channel.Bank),
-        TransactionType.WalletDebit => (TransactionSide.Debit, Channel.Wallet),
+        TransactionType.BankDebit    => (TransactionSide.Debit,  Channel.Bank),
+        TransactionType.BankCredit   => (TransactionSide.Credit, Channel.Bank),
+        TransactionType.WalletDebit  => (TransactionSide.Debit,  Channel.Wallet),
         TransactionType.WalletCredit => (TransactionSide.Credit, Channel.Wallet),
         TransactionType.WalletCancel => (TransactionSide.Credit, Channel.Wallet),
         _ => (TransactionSide.Debit, Channel.Bank)
@@ -163,14 +195,15 @@ public class AccountingEngine : IAccountingEngine
     {
         return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
-            ["AMOUNT"] = tx.Amount,
-            ["AMOUNT_NET"] = tx.NetAmount,
-            ["FEE"] = tx.FeeAmount,
-            ["PARTNER.Balance"] = account?.Balance ?? 0m,
-            ["PARTNER.AccountCode"] = partner?.AccountCode ?? "DEFAULT",
-            ["CUSTOMER.PhoneNumber"] = sub?.PhoneNumber ?? "",
-            ["TX.Currency"] = tx.Currency,
-            ["TX.Type"] = tx.TransactionType.ToString()
+            ["AMOUNT"]                = tx.Amount,
+            ["AMOUNT_NET"]            = tx.NetAmount,
+            ["FEE"]                   = tx.FeeAmount,
+            ["PARTNER.Balance"]       = account?.Balance ?? 0m,
+            ["PARTNER.AccountCode"]   = partner?.AccountCode ?? "DEFAULT",
+            ["CUSTOMER.PhoneNumber"]  = sub?.PhoneNumber ?? string.Empty,
+            ["CUSTOMER.BankAccount"]  = sub?.BankAccountNumber ?? string.Empty,
+            ["TX.Currency"]           = tx.Currency,
+            ["TX.Type"]               = tx.TransactionType.ToString(),
         };
     }
 }

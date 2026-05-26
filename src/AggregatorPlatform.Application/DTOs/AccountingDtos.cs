@@ -23,6 +23,9 @@ public record AccountingSchemaLineDto(
     LedgerSide Side,
     string AmountFormula,
     string Label,
+    string? Code,
+    string? Exploitant,
+    bool IsFee,
     bool IsConditional,
     string? Condition);
 
@@ -44,13 +47,14 @@ public record CreateAccountingSchemaLineRequest(
     LedgerSide Side,
     string AmountFormula,
     string Label,
+    string? Code,
+    string? Exploitant,
+    bool IsFee,
     bool IsConditional,
     string? Condition);
 
 /// <summary>
-/// Payload PATCH partiel : seules les proprietes renseignees (non-null) sont
-/// appliquees a l'entite. Une valeur omise reste a null et la valeur existante
-/// en BD est preservee.
+/// PATCH partiel : seuls les champs renseignes sont appliques.
 /// </summary>
 public record UpdateAccountingSchemaRequest(
     string? Name,
@@ -58,19 +62,20 @@ public record UpdateAccountingSchemaRequest(
     int? Priority,
     string? Description);
 
-public record JournalEntryDto(
-    Guid EntryId,
+/// <summary>
+/// Mouvement comptable genere par l'application d'un schema sur une transaction.
+/// </summary>
+public record MovementDto(
+    Guid MovementId,
     Guid TransactionId,
     Guid SchemaId,
-    DateTime EntryDate,
-    decimal TotalDebit,
-    decimal TotalCredit,
-    bool IsBalanced,
-    IReadOnlyList<JournalLineDto> Lines);
-
-public record JournalLineDto(
-    Guid LineId,
-    string AccountCode,
-    LedgerSide Side,
+    int LineOrder,
+    string Account,
     decimal Amount,
-    string Label);
+    LedgerSide Side,
+    string Label,
+    string? Code,
+    string? Exploitant,
+    string? Reference,
+    DateTime TransactionDate,
+    bool IsFee);

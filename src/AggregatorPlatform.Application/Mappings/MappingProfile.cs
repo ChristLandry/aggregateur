@@ -15,8 +15,7 @@ public class MappingProfile : Profile
         CreateMap<Transaction, TransactionDto>();
         CreateMap<AccountingSchema, AccountingSchemaDto>();
         CreateMap<AccountingSchemaLine, AccountingSchemaLineDto>();
-        CreateMap<JournalEntry, JournalEntryDto>();
-        CreateMap<JournalLine, JournalLineDto>();
+        CreateMap<Movement, MovementDto>();
         CreateMap<PartnerAccountMovement, PartnerStatementItemDto>();
     }
 }

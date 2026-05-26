@@ -41,9 +41,21 @@ public class PartnerController : BaseApiController
     public async Task<ActionResult<ApiResponse<RotateApiKeyResponse>>> RotateKey(Guid id, CancellationToken ct)
         => ToResponse(await Mediator.Send(new RotatePartnerApiKeyCommand(id), ct));
 
-    /// <summary>Get partner mirror account.</summary>
+    /// <summary>Get partner mirror account (full DTO).</summary>
     [HttpGet("{id:guid}/account")]
     [Authorize(Roles = "Admin,SuperAdmin,Partner")]
     public async Task<ActionResult<ApiResponse<PartnerAccountDto>>> GetAccount(Guid id, CancellationToken ct)
         => ToResponse(await Mediator.Send(new GetPartnerAccountQuery(id), ct));
+
+    /// <summary>Get partner current balance (lightweight).</summary>
+    [HttpGet("{id:guid}/balance")]
+    [Authorize(Roles = "Admin,SuperAdmin,Partner,Finance")]
+    public async Task<ActionResult<ApiResponse<PartnerBalanceDto>>> GetBalance(Guid id, CancellationToken ct)
+        => ToResponse(await Mediator.Send(new GetPartnerBalanceQuery(id), ct));
+
+    /// <summary>Set partner balance (admin override). A PartnerAccountMovement is recorded for audit.</summary>
+    [HttpPut("{id:guid}/balance")]
+    [Authorize(Roles = "Admin,SuperAdmin,Finance")]
+    public async Task<ActionResult<ApiResponse<PartnerBalanceDto>>> SetBalance(Guid id, [FromBody] UpdatePartnerBalanceRequest request, CancellationToken ct)
+        => ToResponse(await Mediator.Send(new UpdatePartnerBalanceCommand(id, request), ct));
 }

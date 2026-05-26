@@ -34,12 +34,9 @@ public class BankDebitCommandHandlerTests
         bank = new Mock<IBankApiClient>();
         accounting = new Mock<IAccountingEngine>();
         var uow = new Mock<IUnitOfWork>();
-        var feeCalc = new Mock<IFeeCalculator>();
-        feeCalc.Setup(f => f.CalculateAsync(It.IsAny<Guid>(), It.IsAny<TransactionType>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(50m);
         var webhooks = new Mock<IWebhookService>();
         return new BankDebitCommandHandler(txs.Object, subs.Object, partners.Object, uow.Object,
-            feeCalc.Object, accounting.Object, webhooks.Object, BuildMapper(),
+            accounting.Object, webhooks.Object, BuildMapper(),
             NullLogger<BankDebitCommandHandler>.Instance, bank.Object);
     }
 

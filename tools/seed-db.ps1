@@ -61,6 +61,8 @@ function Invoke-Sql {
         } else {
             $args += @('-Q', $Query)
         }
+        # -I active QUOTED_IDENTIFIER (requis par les filtered indexes et triggers).
+        $args += @('-I')
         & $sqlcmdExe @args
         if ($LASTEXITCODE -ne 0) {
             throw "sqlcmd a echoue (code $LASTEXITCODE)"
@@ -165,11 +167,9 @@ SELECT 'PartnerAccountMovements', COUNT(*) FROM PartnerAccountMovements UNION AL
 SELECT 'Customers',               COUNT(*) FROM Customers UNION ALL
 SELECT 'Subscriptions',           COUNT(*) FROM Subscriptions UNION ALL
 SELECT 'Transactions',            COUNT(*) FROM Transactions UNION ALL
-SELECT 'JournalEntries',          COUNT(*) FROM JournalEntries UNION ALL
-SELECT 'JournalLines',            COUNT(*) FROM JournalLines UNION ALL
+SELECT 'Movements',               COUNT(*) FROM Movements UNION ALL
 SELECT 'AccountingSchemas',       COUNT(*) FROM AccountingSchemas UNION ALL
 SELECT 'AccountingSchemaLines',   COUNT(*) FROM AccountingSchemaLines UNION ALL
-SELECT 'FeeConfigurations',       COUNT(*) FROM FeeConfigurations UNION ALL
 SELECT 'WebhookLogs',             COUNT(*) FROM WebhookLogs UNION ALL
 SELECT 'AuditLogs',               COUNT(*) FROM AuditLogs UNION ALL
 SELECT 'SystemParameters',        COUNT(*) FROM SystemParameters

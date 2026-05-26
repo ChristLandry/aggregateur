@@ -27,12 +27,10 @@ public class AggregatorDbContext : DbContext
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<AccountingSchema> AccountingSchemas => Set<AccountingSchema>();
     public DbSet<AccountingSchemaLine> AccountingSchemaLines => Set<AccountingSchemaLine>();
-    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
-    public DbSet<JournalLine> JournalLines => Set<JournalLine>();
+    public DbSet<Movement> Movements => Set<Movement>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<SystemParameter> SystemParameters => Set<SystemParameter>();
     public DbSet<WebhookLog> WebhookLogs => Set<WebhookLog>();
-    public DbSet<FeeConfiguration> FeeConfigurations => Set<FeeConfiguration>();
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 

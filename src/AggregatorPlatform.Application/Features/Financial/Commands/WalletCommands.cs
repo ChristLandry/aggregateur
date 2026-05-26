@@ -14,10 +14,7 @@ public record WalletDebitCommand(Guid PartnerId, TransactionRequest Request) : I
 
 public class WalletDebitValidator : AbstractValidator<WalletDebitCommand>
 {
-    public WalletDebitValidator()
-    {
-        RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
-    }
+    public WalletDebitValidator() => RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
 }
 
 public class WalletDebitCommandHandler : FinancialBaseHandler, IRequestHandler<WalletDebitCommand, Result<TransactionDto>>
@@ -26,9 +23,9 @@ public class WalletDebitCommandHandler : FinancialBaseHandler, IRequestHandler<W
 
     public WalletDebitCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
-        IUnitOfWork uow, IFeeCalculator feeCalculator, IAccountingEngine accounting, IWebhookService webhooks,
+        IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<WalletDebitCommandHandler> logger, IWalletApiClient wallet)
-        : base(transactions, subscriptions, partners, uow, feeCalculator, accounting, webhooks, mapper, logger)
+        : base(transactions, subscriptions, partners, uow, accounting, webhooks, mapper, logger)
     {
         _wallet = wallet;
     }
@@ -45,13 +42,14 @@ public class WalletDebitCommandHandler : FinancialBaseHandler, IRequestHandler<W
         if (err == "SUBSCRIPTION_INVALID")
             return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
 
-        var tx = await BuildTransactionAsync(request.Request, sub, request.PartnerId, TransactionType.WalletDebit, cancellationToken);
+        var tx = BuildTransaction(request.Request, sub, request.PartnerId, TransactionType.WalletDebit);
 
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
 
         try
         {
+            // Appel HTTP au partenaire wallet => le partenaire credite/debite le wallet du client.
             var resp = await _wallet.DebitAsync(partner, new WalletTransactionRequest(
                 tx.PartnerTransactionRef, request.Request.PhoneNumber!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
@@ -73,10 +71,7 @@ public record WalletCreditCommand(Guid PartnerId, TransactionRequest Request) : 
 
 public class WalletCreditValidator : AbstractValidator<WalletCreditCommand>
 {
-    public WalletCreditValidator()
-    {
-        RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
-    }
+    public WalletCreditValidator() => RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
 }
 
 public class WalletCreditCommandHandler : FinancialBaseHandler, IRequestHandler<WalletCreditCommand, Result<TransactionDto>>
@@ -85,9 +80,9 @@ public class WalletCreditCommandHandler : FinancialBaseHandler, IRequestHandler<
 
     public WalletCreditCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
-        IUnitOfWork uow, IFeeCalculator feeCalculator, IAccountingEngine accounting, IWebhookService webhooks,
+        IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<WalletCreditCommandHandler> logger, IWalletApiClient wallet)
-        : base(transactions, subscriptions, partners, uow, feeCalculator, accounting, webhooks, mapper, logger)
+        : base(transactions, subscriptions, partners, uow, accounting, webhooks, mapper, logger)
     {
         _wallet = wallet;
     }
@@ -104,13 +99,14 @@ public class WalletCreditCommandHandler : FinancialBaseHandler, IRequestHandler<
         if (err == "SUBSCRIPTION_INVALID")
             return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
 
-        var tx = await BuildTransactionAsync(request.Request, sub, request.PartnerId, TransactionType.WalletCredit, cancellationToken);
+        var tx = BuildTransaction(request.Request, sub, request.PartnerId, TransactionType.WalletCredit);
 
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
 
         try
         {
+            // Appel HTTP au partenaire wallet => le partenaire credite le wallet du client.
             var resp = await _wallet.CreditAsync(partner, new WalletTransactionRequest(
                 tx.PartnerTransactionRef, request.Request.PhoneNumber!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
@@ -145,9 +141,9 @@ public class WalletCancelCommandHandler : FinancialBaseHandler, IRequestHandler<
 
     public WalletCancelCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
-        IUnitOfWork uow, IFeeCalculator feeCalculator, IAccountingEngine accounting, IWebhookService webhooks,
+        IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<WalletCancelCommandHandler> logger, IWalletApiClient wallet)
-        : base(transactions, subscriptions, partners, uow, feeCalculator, accounting, webhooks, mapper, logger)
+        : base(transactions, subscriptions, partners, uow, accounting, webhooks, mapper, logger)
     {
         _wallet = wallet;
     }
@@ -160,7 +156,6 @@ public class WalletCancelCommandHandler : FinancialBaseHandler, IRequestHandler<
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
         if (partner is null) return Result<TransactionDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
-        // Recupere la transaction d'origine par sa ref externe pour assurer la coherence comptable.
         var original = (await Transactions.FindAsync(t => t.ExternalRef == request.Request.OriginalExternalRef && t.PartnerId == request.PartnerId, cancellationToken))
             .FirstOrDefault();
         if (original is null)
@@ -178,7 +173,7 @@ public class WalletCancelCommandHandler : FinancialBaseHandler, IRequestHandler<
             PhoneNumber = original.PhoneNumber,
         };
 
-        var tx = await BuildTransactionAsync(cancelRequest, original.Subscription, request.PartnerId, TransactionType.WalletCancel, cancellationToken);
+        var tx = BuildTransaction(cancelRequest, original.Subscription, request.PartnerId, TransactionType.WalletCancel);
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
 

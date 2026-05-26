@@ -48,21 +48,6 @@ public class WebhookLogConfiguration : IEntityTypeConfiguration<WebhookLog>
     }
 }
 
-public class FeeConfigurationConfiguration : IEntityTypeConfiguration<FeeConfiguration>
-{
-    public void Configure(EntityTypeBuilder<FeeConfiguration> b)
-    {
-        b.ToTable("FeeConfigurations");
-        b.HasKey(x => x.FeeId);
-        b.Property(x => x.FixedAmount).HasPrecision(18, 4);
-        b.Property(x => x.Percentage).HasPrecision(7, 4);
-        b.Property(x => x.MaxFeeAmount).HasPrecision(18, 4);
-        b.Property(x => x.TransactionType).HasConversion<int>();
-        b.Property(x => x.FeeType).HasConversion<int>();
-        b.HasIndex(x => new { x.PartnerId, x.TransactionType, x.IsActive });
-    }
-}
-
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> b)

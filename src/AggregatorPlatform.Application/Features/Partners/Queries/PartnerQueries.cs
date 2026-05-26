@@ -10,6 +10,9 @@ public record GetPartnerByIdQuery(Guid PartnerId) : IRequest<Result<PartnerDto>>
 public record GetAllPartnersQuery() : IRequest<Result<IReadOnlyList<PartnerDto>>>;
 public record GetPartnerAccountQuery(Guid PartnerId) : IRequest<Result<PartnerAccountDto>>;
 
+/// <summary>Renvoie uniquement le solde courant + devise.</summary>
+public record GetPartnerBalanceQuery(Guid PartnerId) : IRequest<Result<PartnerBalanceDto>>;
+
 public class GetPartnerByIdQueryHandler : IRequestHandler<GetPartnerByIdQuery, Result<PartnerDto>>
 {
     private readonly IPartnerRepository _partners;
@@ -63,5 +66,20 @@ public class GetPartnerAccountQueryHandler : IRequestHandler<GetPartnerAccountQu
         var acc = await _accounts.GetByPartnerIdAsync(request.PartnerId, cancellationToken);
         if (acc is null) return Result<PartnerAccountDto>.Failure("ACCOUNT_NOT_FOUND", "Account not found.");
         return Result<PartnerAccountDto>.Success(_mapper.Map<PartnerAccountDto>(acc));
+    }
+}
+
+public class GetPartnerBalanceQueryHandler : IRequestHandler<GetPartnerBalanceQuery, Result<PartnerBalanceDto>>
+{
+    private readonly IPartnerAccountRepository _accounts;
+
+    public GetPartnerBalanceQueryHandler(IPartnerAccountRepository accounts) => _accounts = accounts;
+
+    public async Task<Result<PartnerBalanceDto>> Handle(GetPartnerBalanceQuery request, CancellationToken cancellationToken)
+    {
+        var acc = await _accounts.GetByPartnerIdAsync(request.PartnerId, cancellationToken);
+        if (acc is null) return Result<PartnerBalanceDto>.Failure("ACCOUNT_NOT_FOUND", "Partner account not found.");
+        return Result<PartnerBalanceDto>.Success(new PartnerBalanceDto(
+            acc.PartnerId, acc.Balance, acc.Currency, acc.LastMovementAt));
     }
 }

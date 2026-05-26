@@ -51,7 +51,7 @@ public record TransactionRequest
 
     /// <summary>
     /// Frais imposes par l'appelant (optionnel).
-    /// Si null : calcule automatiquement via <c>IFeeCalculator</c>.
+    /// Si null : calcule automatiquement via le schema comptable (lignes IsFee).
     /// Si renseigne : valeur respectee telle quelle (doit etre >= 0).
     /// </summary>
     public decimal? Fees { get; init; }

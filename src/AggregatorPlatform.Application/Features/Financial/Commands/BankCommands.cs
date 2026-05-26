@@ -14,10 +14,7 @@ public record BankDebitCommand(Guid PartnerId, TransactionRequest Request) : IRe
 
 public class BankDebitValidator : AbstractValidator<BankDebitCommand>
 {
-    public BankDebitValidator()
-    {
-        RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
-    }
+    public BankDebitValidator() => RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
 }
 
 public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<BankDebitCommand, Result<TransactionDto>>
@@ -26,9 +23,9 @@ public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<Ban
 
     public BankDebitCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
-        IUnitOfWork uow, IFeeCalculator feeCalculator, IAccountingEngine accounting, IWebhookService webhooks,
+        IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<BankDebitCommandHandler> logger, IBankApiClient bank)
-        : base(transactions, subscriptions, partners, uow, feeCalculator, accounting, webhooks, mapper, logger)
+        : base(transactions, subscriptions, partners, uow, accounting, webhooks, mapper, logger)
     {
         _bank = bank;
     }
@@ -45,7 +42,7 @@ public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<Ban
         if (err == "SUBSCRIPTION_INVALID")
             return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
 
-        var tx = await BuildTransactionAsync(request.Request, sub, request.PartnerId, TransactionType.BankDebit, cancellationToken);
+        var tx = BuildTransaction(request.Request, sub, request.PartnerId, TransactionType.BankDebit);
 
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
@@ -73,10 +70,7 @@ public record BankCreditCommand(Guid PartnerId, TransactionRequest Request) : IR
 
 public class BankCreditValidator : AbstractValidator<BankCreditCommand>
 {
-    public BankCreditValidator()
-    {
-        RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
-    }
+    public BankCreditValidator() => RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
 }
 
 public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<BankCreditCommand, Result<TransactionDto>>
@@ -85,9 +79,9 @@ public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<Ba
 
     public BankCreditCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
-        IUnitOfWork uow, IFeeCalculator feeCalculator, IAccountingEngine accounting, IWebhookService webhooks,
+        IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<BankCreditCommandHandler> logger, IBankApiClient bank)
-        : base(transactions, subscriptions, partners, uow, feeCalculator, accounting, webhooks, mapper, logger)
+        : base(transactions, subscriptions, partners, uow, accounting, webhooks, mapper, logger)
     {
         _bank = bank;
     }
@@ -104,7 +98,7 @@ public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<Ba
         if (err == "SUBSCRIPTION_INVALID")
             return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
 
-        var tx = await BuildTransactionAsync(request.Request, sub, request.PartnerId, TransactionType.BankCredit, cancellationToken);
+        var tx = BuildTransaction(request.Request, sub, request.PartnerId, TransactionType.BankCredit);
 
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);

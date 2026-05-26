@@ -57,6 +57,9 @@ public class CreateAccountingSchemaCommandHandler : IRequestHandler<CreateAccoun
                 Side = l.Side,
                 AmountFormula = l.AmountFormula,
                 Label = l.Label,
+                Code = l.Code,
+                Exploitant = l.Exploitant,
+                IsFee = l.IsFee,
                 IsConditional = l.IsConditional,
                 Condition = l.Condition
             }).ToList()
@@ -149,6 +152,9 @@ public class AddSchemaLineCommandHandler : IRequestHandler<AddSchemaLineCommand,
             Side = request.Line.Side,
             AmountFormula = request.Line.AmountFormula,
             Label = request.Line.Label,
+            Code = request.Line.Code,
+            Exploitant = request.Line.Exploitant,
+            IsFee = request.Line.IsFee,
             IsConditional = request.Line.IsConditional,
             Condition = request.Line.Condition
         };

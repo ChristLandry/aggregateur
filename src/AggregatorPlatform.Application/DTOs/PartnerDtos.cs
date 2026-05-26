@@ -21,7 +21,7 @@ public record CreatePartnerRequest(
     string Name,
     string BaseUrl,
     string Currency,
-    string PartnerBankAccount,
+    string? PartnerBankAccount,
     string? AccountCode,
     string? WebhookUrl,
     int RateLimitPerMin,
@@ -42,7 +42,11 @@ public record UpdatePartnerRequest(
     string? WebhookUrl,
     int? RateLimitPerMin,
     string? IpWhitelist,
-    bool? RequireHmac);
+    bool? RequireHmac,
+    string? Currency,
+    string? PartnerBankAccount);
+
+public record UpdatePartnerBalanceRequest(decimal Balance, string? Reason);
 
 public record ChangePartnerStatusRequest(PartnerStatus Status);
 
@@ -55,3 +59,5 @@ public record PartnerAccountDto(
     DateTime? LastMovementAt);
 
 public record RotateApiKeyResponse(Guid PartnerId, string ApiKey);
+
+public record PartnerBalanceDto(Guid PartnerId, decimal Balance, string Currency, DateTime? LastMovementAt);

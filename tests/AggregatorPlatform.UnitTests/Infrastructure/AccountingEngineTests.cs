@@ -1,4 +1,3 @@
-using AggregatorPlatform.Application.Interfaces;
 using AggregatorPlatform.Domain.Entities;
 using AggregatorPlatform.Domain.Enums;
 using AggregatorPlatform.Domain.Interfaces;
@@ -20,27 +19,25 @@ public class AccountingEngineTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         var db = new AggregatorDbContext(opts);
         var schemas = new AccountingSchemaRepository(db);
-        var entries = new Repository<JournalEntry>(db);
+        var movements = new Repository<Movement>(db);
         var accounts = new PartnerAccountRepository(db);
-        var movements = new Repository<PartnerAccountMovement>(db);
+        var accountMovements = new Repository<PartnerAccountMovement>(db);
         var partners = new PartnerRepository(db);
         var evaluator = new FormulaEvaluator();
-        var engine = new AccountingEngine(schemas, entries, accounts, movements, partners, evaluator,
+        var engine = new AccountingEngine(schemas, movements, accounts, accountMovements, partners, evaluator,
             NullLogger<AccountingEngine>.Instance);
         return (db, engine);
     }
 
     [Fact]
-    public async Task Applies_balanced_schema_and_creates_journal()
+    public async Task Applies_balanced_schema_and_creates_movements_with_signed_amounts()
     {
         var (db, engine) = BuildEngine();
         var partnerId = Guid.NewGuid();
         db.Partners.Add(new Partner { PartnerId = partnerId, PartnerCode = "P1", Name = "P", BaseUrl = "https://p", ApiKey = "h", Status = PartnerStatus.Active });
         db.PartnerAccounts.Add(new PartnerAccount { PartnerId = partnerId, Balance = 0, Currency = "XOF" });
-        var schemaId = Guid.NewGuid();
         db.AccountingSchemas.Add(new AccountingSchema
         {
-            SchemaId = schemaId,
             Name = "BankDebit",
             TransactionType = TransactionType.BankDebit,
             TransactionSide = TransactionSide.Debit,
@@ -48,20 +45,19 @@ public class AccountingEngineTests
             IsActive = true,
             Lines = new List<AccountingSchemaLine>
             {
-                new() { LineOrder = 1, AccountCode = "411", Side = LedgerSide.Debit, AmountFormula = "AMOUNT", Label = "Client" },
-                new() { LineOrder = 2, AccountCode = "707", Side = LedgerSide.Credit, AmountFormula = "AMOUNT_NET", Label = "Vente" },
-                new() { LineOrder = 3, AccountCode = "70", Side = LedgerSide.Credit, AmountFormula = "FEE", Label = "Commission" }
+                new() { LineOrder = 1, AccountCode = "411", Side = LedgerSide.Debit,  AmountFormula = "AMOUNT",          Label = "Client",     Code = "CLI", Exploitant = "AU" },
+                new() { LineOrder = 2, AccountCode = "70-FEE", Side = LedgerSide.Credit, AmountFormula = "AMOUNT * 0.05", Label = "Commission", Code = "FEE", Exploitant = "AU", IsFee = true },
+                new() { LineOrder = 3, AccountCode = "707",   Side = LedgerSide.Credit, AmountFormula = "L1 - L2",        Label = "Vente nette",Code = "INTEG", Exploitant = "AU" },
             }
         });
         await db.SaveChangesAsync();
 
         var tx = new Transaction
         {
-            TransactionId = Guid.NewGuid(),
             PartnerId = partnerId,
             PartnerTransactionRef = "T1",
             TransactionType = TransactionType.BankDebit,
-            Amount = 1000, FeeAmount = 50, NetAmount = 950,
+            Amount = 1000, FeeAmount = 0, NetAmount = 1000,
             Currency = "XOF",
             Status = TransactionStatus.Success
         };
@@ -72,22 +68,29 @@ public class AccountingEngineTests
         await db.SaveChangesAsync();
 
         tx.AccountingStatus.Should().Be(AccountingStatus.Applied);
-        var entry = db.JournalEntries.Include(e => e.Lines).Single();
-        entry.IsBalanced.Should().BeTrue();
-        entry.TotalDebit.Should().Be(1000);
-        entry.TotalCredit.Should().Be(1000);
-        entry.Lines.Should().HaveCount(3);
+        // Fee recalcule par le schema : 1000 * 5% = 50
+        tx.FeeAmount.Should().Be(50);
+        tx.NetAmount.Should().Be(950);
+
+        var movements = db.Movements.OrderBy(m => m.LineOrder).ToList();
+        movements.Should().HaveCount(3);
+        movements[0].Amount.Should().Be(-1000); // debit
+        movements[1].Amount.Should().Be(50);    // credit (fee)
+        movements[2].Amount.Should().Be(950);   // credit (L1 - L2 = 1000 - 50)
+
+        // Equilibre : -1000 + 50 + 950 = 0
+        movements.Sum(m => m.Amount).Should().Be(0);
     }
 
     [Fact]
-    public async Task Marks_error_when_no_schema_applicable()
+    public async Task Skips_when_no_schema_applicable()
     {
         var (db, engine) = BuildEngine();
         var partnerId = Guid.NewGuid();
         var tx = new Transaction
         {
-            TransactionId = Guid.NewGuid(),
             PartnerId = partnerId,
+            PartnerTransactionRef = "X",
             TransactionType = TransactionType.BankCredit,
             Amount = 100, NetAmount = 100, Currency = "XOF"
         };
@@ -99,7 +102,7 @@ public class AccountingEngineTests
     }
 
     [Fact]
-    public async Task Updates_mirror_account_on_bank_debit()
+    public async Task Updates_partner_mirror_account_on_bank_debit()
     {
         var (db, engine) = BuildEngine();
         var partnerId = Guid.NewGuid();
@@ -113,14 +116,14 @@ public class AccountingEngineTests
             IsActive = true,
             Lines = new List<AccountingSchemaLine>
             {
-                new() { LineOrder = 1, AccountCode = "411", Side = LedgerSide.Debit, AmountFormula = "AMOUNT", Label = "Client" },
-                new() { LineOrder = 2, AccountCode = "707", Side = LedgerSide.Credit, AmountFormula = "AMOUNT", Label = "Vente" }
+                new() { LineOrder = 1, AccountCode = "411", Side = LedgerSide.Debit,  AmountFormula = "AMOUNT", Label = "Client" },
+                new() { LineOrder = 2, AccountCode = "707", Side = LedgerSide.Credit, AmountFormula = "AMOUNT", Label = "Vente" },
             }
         });
         var tx = new Transaction
         {
-            TransactionId = Guid.NewGuid(),
             PartnerId = partnerId,
+            PartnerTransactionRef = "M1",
             TransactionType = TransactionType.BankDebit,
             Amount = 500, NetAmount = 500, Currency = "XOF",
             Status = TransactionStatus.Success

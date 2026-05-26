@@ -16,7 +16,6 @@ public abstract class FinancialBaseHandler
     protected readonly ISubscriptionRepository Subscriptions;
     protected readonly IPartnerRepository Partners;
     protected readonly IUnitOfWork Uow;
-    protected readonly IFeeCalculator FeeCalculator;
     protected readonly IAccountingEngine Accounting;
     protected readonly IWebhookService Webhooks;
     protected readonly IMapper Mapper;
@@ -27,7 +26,6 @@ public abstract class FinancialBaseHandler
         ISubscriptionRepository subscriptions,
         IPartnerRepository partners,
         IUnitOfWork uow,
-        IFeeCalculator feeCalculator,
         IAccountingEngine accounting,
         IWebhookService webhooks,
         IMapper mapper,
@@ -37,7 +35,6 @@ public abstract class FinancialBaseHandler
         Subscriptions = subscriptions;
         Partners = partners;
         Uow = uow;
-        FeeCalculator = feeCalculator;
         Accounting = accounting;
         Webhooks = webhooks;
         Mapper = mapper;
@@ -55,14 +52,6 @@ public abstract class FinancialBaseHandler
         return null;
     }
 
-    /// <summary>
-    /// Resout l'abonnement (optionnel) lie a la requete. BankAccount et PhoneNumber etant
-    /// desormais obligatoires dans le payload, l'absence de subscription est un cas valide.
-    /// Retourne (subscription?, errorCode?) :
-    ///   - ok subscription : trouve, actif et appartenant au partenaire
-    ///   - ok null         : aucun SubscriptionId fourni
-    ///   - erreur          : SubscriptionId fourni mais invalide
-    /// </summary>
     protected async Task<(Subscription? Subscription, string? ErrorCode)> ResolveSubscriptionAsync(
         TransactionRequest request, Guid partnerId, CancellationToken ct)
     {
@@ -77,22 +66,16 @@ public abstract class FinancialBaseHandler
     }
 
     /// <summary>
-    /// Construit la transaction en utilisant en priorite les valeurs du payload, puis celles de l'abonnement.
-    /// Les frais sont surchargees par <see cref="TransactionRequest.Fees"/> si fourni, sinon calcules.
+    /// Construit la transaction avec FeeAmount = override request.Fees si fourni, sinon 0
+    /// (le AccountingEngine recalculera depuis les lignes IsFee du schema).
     /// </summary>
-    protected async Task<Transaction> BuildTransactionAsync(
+    protected Transaction BuildTransaction(
         TransactionRequest request,
         Subscription? subscription,
         Guid partnerId,
-        TransactionType type,
-        CancellationToken ct)
+        TransactionType type)
     {
-        var fee = request.Fees ?? await FeeCalculator.CalculateAsync(partnerId, type, request.Amount, ct);
-
-        // BankAccount et PhoneNumber sont valides en entree par le validator.
-        var bankAccount = request.BankAccount;
-        var phoneNumber = request.PhoneNumber;
-
+        var fee = request.Fees ?? 0m;
         return new Transaction
         {
             PartnerTransactionRef = request.PartnerTransactionRef,
@@ -107,8 +90,8 @@ public abstract class FinancialBaseHandler
             Status = TransactionStatus.Pending,
             AccountingStatus = AccountingStatus.Pending,
             InitiatedAt = DateTime.UtcNow,
-            BankAccount = bankAccount,
-            PhoneNumber = phoneNumber,
+            BankAccount = request.BankAccount,
+            PhoneNumber = request.PhoneNumber,
             ExtraData = SerializeExtraData(request.ExtraData),
         };
     }

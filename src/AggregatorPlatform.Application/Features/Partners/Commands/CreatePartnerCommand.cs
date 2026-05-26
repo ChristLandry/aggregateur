@@ -21,7 +21,11 @@ public class CreatePartnerValidator : AbstractValidator<CreatePartnerCommand>
         RuleFor(x => x.Request.BaseUrl).NotEmpty().Must(url => url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("http://", StringComparison.OrdinalIgnoreCase));
         RuleFor(x => x.Request.Currency).NotEmpty().Length(3);
         RuleFor(x => x.Request.RateLimitPerMin).GreaterThan(0);
-        RuleFor(x => x.Request.PartnerBankAccount).NotEmpty().MaximumLength(64);
+        // PartnerBankAccount est OPTIONNEL : valide uniquement la longueur si fourni.
+        When(x => !string.IsNullOrEmpty(x.Request.PartnerBankAccount), () =>
+        {
+            RuleFor(x => x.Request.PartnerBankAccount!).MaximumLength(64);
+        });
     }
 }
 
@@ -67,7 +71,7 @@ public class CreatePartnerCommandHandler : IRequestHandler<CreatePartnerCommand,
         var account = new PartnerAccount
         {
             PartnerId = partner.PartnerId,
-            PartnerBankAccount = request.Request.PartnerBankAccount,
+            PartnerBankAccount = request.Request.PartnerBankAccount ?? string.Empty,
             Balance = 0,
             Currency = request.Request.Currency
         };

@@ -46,5 +46,7 @@ public class Transaction : AuditableEntity
     public Subscription? Subscription { get; set; }
     public Customer? Customer { get; set; }
     public AccountingSchema? Schema { get; set; }
-    public ICollection<JournalEntry> JournalEntries { get; set; } = new List<JournalEntry>();
+
+    /// <summary>Mouvements comptables generes par l'application du schema.</summary>
+    public ICollection<Movement> Movements { get; set; } = new List<Movement>();
 }

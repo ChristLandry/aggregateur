@@ -95,23 +95,23 @@ public class GetFailureAnalysisQueryHandler : IRequestHandler<GetFailureAnalysis
 
 public class GetAccountingReportQueryHandler : IRequestHandler<GetAccountingReportQuery, Result<IReadOnlyList<AccountingReportItemDto>>>
 {
-    private readonly IRepository<JournalLine> _lines;
+    private readonly IRepository<Movement> _movements;
 
-    public GetAccountingReportQueryHandler(IRepository<JournalLine> lines) => _lines = lines;
+    public GetAccountingReportQueryHandler(IRepository<Movement> movements) => _movements = movements;
 
     public async Task<Result<IReadOnlyList<AccountingReportItemDto>>> Handle(GetAccountingReportQuery request, CancellationToken cancellationToken)
     {
-        var q = _lines.Query().Include(l => l.Entry).AsQueryable();
-        if (request.FromDate.HasValue) q = q.Where(l => l.Entry!.EntryDate >= request.FromDate);
-        if (request.ToDate.HasValue) q = q.Where(l => l.Entry!.EntryDate <= request.ToDate);
+        var q = _movements.Query().AsQueryable();
+        if (request.FromDate.HasValue) q = q.Where(m => m.TransactionDate >= request.FromDate);
+        if (request.ToDate.HasValue)   q = q.Where(m => m.TransactionDate <= request.ToDate);
 
-        // Projection en tuple anonyme traduisible par EF Core (Sum conditionnel via expression case).
-        var raw = await q.GroupBy(l => l.AccountCode)
+        // Convention Movement.Amount : negatif = debit, positif = credit (le Side reste expose).
+        var raw = await q.GroupBy(m => m.Account)
             .Select(g => new
             {
                 AccountCode = g.Key,
-                TotalDebit  = g.Where(x => x.Side == LedgerSide.Debit).Sum(x => (decimal?)x.Amount) ?? 0m,
-                TotalCredit = g.Where(x => x.Side == LedgerSide.Credit).Sum(x => (decimal?)x.Amount) ?? 0m
+                TotalDebit  = g.Where(x => x.Side == LedgerSide.Debit).Sum(x => (decimal?)Math.Abs(x.Amount)) ?? 0m,
+                TotalCredit = g.Where(x => x.Side == LedgerSide.Credit).Sum(x => (decimal?)Math.Abs(x.Amount)) ?? 0m
             })
             .OrderBy(x => x.AccountCode)
             .ToListAsync(cancellationToken);

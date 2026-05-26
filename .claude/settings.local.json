@@ -68,7 +68,9 @@
       "Bash(curl -sS -X POST http://localhost:5081/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"superadmin\",\"password\":\"ChangeMe123!\"}' -w \"\\\\nstatus=%{http_code}\\\\n\")",
       "Bash(git check-ignore *)",
       "Bash(node -e ' *)",
-      "Bash(xargs ls -la)"
+      "Bash(xargs ls -la)",
+      "Bash(xargs ls)",
+      "Bash(node docs/generate-postman.js)"
     ]
   }
 }
