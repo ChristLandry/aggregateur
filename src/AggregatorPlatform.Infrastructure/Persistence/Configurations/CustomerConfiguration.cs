@@ -37,7 +37,23 @@ public class SubscriptionConfiguration : IEntityTypeConfiguration<Subscription>
             .HasConversion(EncryptionValueConverter.ForString());
         b.Property(x => x.PhoneOperator).IsRequired().HasMaxLength(50);
         b.Property(x => x.Status).HasConversion<int>();
-        b.HasIndex(x => new { x.CustomerId, x.PartnerId, x.PhoneNumber }).IsUnique();
+
+        // Regle metier : une souscription est unique par (PartnerId, PhoneNumber) ET par (PartnerId, BankAccountNumber).
+        // Un meme client peut donc souscrire chez plusieurs partenaires avec les memes coordonnees,
+        // mais ne peut pas creer deux souscriptions actives identiques chez le meme partenaire.
+        // Les index sont filtres sur IsDeleted = 0 pour permettre la reutilisation apres soft-delete.
+        b.HasIndex(x => new { x.PartnerId, x.PhoneNumber })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0")
+            .HasDatabaseName("IX_Subscriptions_Partner_Phone_Unique");
+
+        b.HasIndex(x => new { x.PartnerId, x.BankAccountNumber })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0")
+            .HasDatabaseName("IX_Subscriptions_Partner_BankAccount_Unique");
+
+        // Index non-unique pour les listings par client
+        b.HasIndex(x => x.CustomerId).HasDatabaseName("IX_Subscriptions_CustomerId");
 
         b.HasOne(x => x.Customer).WithMany(c => c.Subscriptions).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.Partner).WithMany(p => p.Subscriptions).HasForeignKey(x => x.PartnerId).OnDelete(DeleteBehavior.Restrict);

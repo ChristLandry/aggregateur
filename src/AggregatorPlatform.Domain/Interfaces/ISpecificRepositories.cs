@@ -16,7 +16,18 @@ public interface ICustomerRepository : IRepository<Customer>
 
 public interface ISubscriptionRepository : IRepository<Subscription>
 {
-    Task<bool> ExistsForCustomerAsync(Guid customerId, Guid partnerId, string phoneNumber, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Vrai si une souscription active existe deja pour ce partenaire avec ce numero de telephone.
+    /// Regle metier : une souscription est unique par (PartnerId, PhoneNumber).
+    /// </summary>
+    Task<bool> ExistsByPartnerAndPhoneAsync(Guid partnerId, string phoneNumber, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Vrai si une souscription active existe deja pour ce partenaire avec ce numero de compte.
+    /// Regle metier : une souscription est unique par (PartnerId, BankAccountNumber).
+    /// </summary>
+    Task<bool> ExistsByPartnerAndBankAccountAsync(Guid partnerId, string bankAccountNumber, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<Subscription>> GetByCustomerAsync(Guid customerId, CancellationToken cancellationToken = default);
 }
 

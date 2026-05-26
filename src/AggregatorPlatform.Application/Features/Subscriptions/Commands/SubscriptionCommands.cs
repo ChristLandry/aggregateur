@@ -47,8 +47,18 @@ public class CreateSubscriptionCommandHandler : IRequestHandler<CreateSubscripti
         var partner = await _partners.GetByIdAsync(request.PartnerId, cancellationToken);
         if (partner is null) return Result<Guid>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
-        var exists = await _subs.ExistsForCustomerAsync(request.CustomerId, request.PartnerId, request.Request.PhoneNumber, cancellationToken);
-        if (exists) return Result<Guid>.Failure("SUBSCRIPTION_EXISTS", "Subscription already exists for this triplet.");
+        // Regle metier : une souscription est unique par (PartnerId, PhoneNumber) ET (PartnerId, BankAccountNumber).
+        // Verification applicative AVANT le SaveChanges pour produire un code d'erreur explicite ;
+        // les index uniques composites en BD garantissent la regle meme en cas de race condition.
+        var phoneTaken = await _subs.ExistsByPartnerAndPhoneAsync(request.PartnerId, request.Request.PhoneNumber, cancellationToken);
+        if (phoneTaken)
+            return Result<Guid>.Failure("SUBSCRIPTION_PHONE_DUPLICATE",
+                "An active subscription already exists for this phone number on the same partner.");
+
+        var bankTaken = await _subs.ExistsByPartnerAndBankAccountAsync(request.PartnerId, request.Request.BankAccountNumber, cancellationToken);
+        if (bankTaken)
+            return Result<Guid>.Failure("SUBSCRIPTION_BANK_DUPLICATE",
+                "An active subscription already exists for this bank account on the same partner.");
 
         var sub = new Subscription
         {
