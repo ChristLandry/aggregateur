@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace AggregatorPlatform.API.Controllers;
 
 [Route("api/v1/customers")]
-[RequirePartner]
+//[RequirePartner]
 public class CustomerController : BaseApiController
 {
     private readonly ICurrentPartnerService _currentPartner;

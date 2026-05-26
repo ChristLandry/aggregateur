@@ -37,9 +37,8 @@ public class PartnerAuthMiddleware
         }
 
         // RequirePartner attribute or specific controller paths trigger this check.
-        // For simplicity here we enforce on /api/v1/customers, /subscriptions, /financial.
-        var partnerScoped = path.StartsWith("/api/v1/customers", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/api/v1/subscriptions", StringComparison.OrdinalIgnoreCase)
+        // For simplicity here we enforce on /subscriptions, /financial.
+        var partnerScoped = path.StartsWith("/api/v1/subscriptions", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/v1/financial", StringComparison.OrdinalIgnoreCase);
 
         if (!partnerScoped)
