@@ -56,12 +56,22 @@ public class CreateCustomerCommandHandler : IRequestHandler<CreateCustomerComman
 
 public record UpdateCustomerCommand(Guid CustomerId, UpdateCustomerRequest Request) : IRequest<Result>;
 
+/// <summary>
+/// Validation conditionnelle : chaque regle ne s'applique que si la propriete est presente.
+/// </summary>
 public class UpdateCustomerValidator : AbstractValidator<UpdateCustomerCommand>
 {
     public UpdateCustomerValidator()
     {
-        RuleFor(x => x.Request.FullName).NotEmpty().MaximumLength(300);
-        RuleFor(x => x.Request.Email).EmailAddress().When(x => !string.IsNullOrEmpty(x.Request.Email));
+        When(x => x.Request.FullName is not null, () =>
+        {
+            RuleFor(x => x.Request.FullName!).NotEmpty().MaximumLength(300);
+        });
+
+        When(x => !string.IsNullOrEmpty(x.Request.Email), () =>
+        {
+            RuleFor(x => x.Request.Email!).EmailAddress();
+        });
     }
 }
 
@@ -81,11 +91,15 @@ public class UpdateCustomerCommandHandler : IRequestHandler<UpdateCustomerComman
         var customer = await _customers.GetByIdAsync(request.CustomerId, cancellationToken);
         if (customer is null) return Result.Failure("CUSTOMER_NOT_FOUND", "Customer not found.");
 
-        customer.FullName = request.Request.FullName;
-        customer.DateOfBirth = request.Request.DateOfBirth;
-        customer.Email = request.Request.Email;
-        customer.Status = request.Request.Status;
-        customer.KycStatus = request.Request.KycStatus;
+        var r = request.Request;
+
+        // PATCH partiel : seuls les champs explicitement fournis sont appliques.
+        if (r.FullName     is not null) customer.FullName    = r.FullName;
+        if (r.DateOfBirth.HasValue)     customer.DateOfBirth = r.DateOfBirth.Value;
+        if (r.Email        is not null) customer.Email       = r.Email;
+        if (r.Status.HasValue)          customer.Status      = r.Status.Value;
+        if (r.KycStatus.HasValue)       customer.KycStatus   = r.KycStatus.Value;
+
         _customers.Update(customer);
         await _uow.SaveChangesAsync(cancellationToken);
         return Result.Success();

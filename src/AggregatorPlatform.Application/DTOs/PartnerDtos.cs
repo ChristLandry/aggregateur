@@ -30,14 +30,19 @@ public record CreatePartnerRequest(
 
 public record CreatePartnerResponse(Guid PartnerId, string PartnerCode, string ApiKey);
 
+/// <summary>
+/// Payload PATCH partiel : seules les proprietes renseignees (non-null) sont
+/// appliquees a l'entite. Une valeur omise dans le JSON reste a null et
+/// la valeur existante en BD est preservee.
+/// </summary>
 public record UpdatePartnerRequest(
-    string Name,
-    string BaseUrl,
+    string? Name,
+    string? BaseUrl,
     string? AccountCode,
     string? WebhookUrl,
-    int RateLimitPerMin,
+    int? RateLimitPerMin,
     string? IpWhitelist,
-    bool RequireHmac);
+    bool? RequireHmac);
 
 public record ChangePartnerStatusRequest(PartnerStatus Status);
 

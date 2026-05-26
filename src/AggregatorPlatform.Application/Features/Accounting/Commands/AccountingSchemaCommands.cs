@@ -69,6 +69,25 @@ public class CreateAccountingSchemaCommandHandler : IRequestHandler<CreateAccoun
 
 public record UpdateAccountingSchemaCommand(Guid SchemaId, UpdateAccountingSchemaRequest Request) : IRequest<Result>;
 
+/// <summary>
+/// Validation conditionnelle : chaque regle ne s'applique que si la propriete est presente.
+/// </summary>
+public class UpdateAccountingSchemaValidator : AbstractValidator<UpdateAccountingSchemaCommand>
+{
+    public UpdateAccountingSchemaValidator()
+    {
+        When(x => x.Request.Name is not null, () =>
+        {
+            RuleFor(x => x.Request.Name!).NotEmpty().MaximumLength(200);
+        });
+
+        When(x => x.Request.Priority.HasValue, () =>
+        {
+            RuleFor(x => x.Request.Priority!.Value).GreaterThanOrEqualTo(0);
+        });
+    }
+}
+
 public class UpdateAccountingSchemaCommandHandler : IRequestHandler<UpdateAccountingSchemaCommand, Result>
 {
     private readonly IAccountingSchemaRepository _schemas;
@@ -84,10 +103,15 @@ public class UpdateAccountingSchemaCommandHandler : IRequestHandler<UpdateAccoun
     {
         var schema = await _schemas.GetByIdAsync(request.SchemaId, cancellationToken);
         if (schema is null) return Result.Failure("SCHEMA_NOT_FOUND", "Schema not found.");
-        schema.Name = request.Request.Name;
-        schema.IsActive = request.Request.IsActive;
-        schema.Priority = request.Request.Priority;
-        schema.Description = request.Request.Description;
+
+        var r = request.Request;
+
+        // PATCH partiel : seuls les champs explicitement fournis sont appliques.
+        if (r.Name        is not null) schema.Name        = r.Name;
+        if (r.IsActive.HasValue)       schema.IsActive    = r.IsActive.Value;
+        if (r.Priority.HasValue)       schema.Priority    = r.Priority.Value;
+        if (r.Description is not null) schema.Description = r.Description;
+
         _schemas.Update(schema);
         await _uow.SaveChangesAsync(cancellationToken);
         return Result.Success();

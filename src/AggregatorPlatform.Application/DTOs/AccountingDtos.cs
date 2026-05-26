@@ -47,10 +47,15 @@ public record CreateAccountingSchemaLineRequest(
     bool IsConditional,
     string? Condition);
 
+/// <summary>
+/// Payload PATCH partiel : seules les proprietes renseignees (non-null) sont
+/// appliquees a l'entite. Une valeur omise reste a null et la valeur existante
+/// en BD est preservee.
+/// </summary>
 public record UpdateAccountingSchemaRequest(
-    string Name,
-    bool IsActive,
-    int Priority,
+    string? Name,
+    bool? IsActive,
+    int? Priority,
     string? Description);
 
 public record JournalEntryDto(
