@@ -1,22 +1,183 @@
 # Prompts front-end Next.js
 
-Deux prompts a coller dans Claude / ChatGPT / Cursor pour generer le front
-de la plateforme. Ils sont independants : le **Prompt A** bootstrappe
-l'application complete ; le **Prompt B** se concentre sur les ecrans de
-test/simulation des schemas comptables (a executer **apres** le prompt A).
+Trois blocs a copier-coller dans Claude / ChatGPT / Cursor :
+- **Design System** : a injecter dans CHAQUE prompt comme directives de style.
+- **Prompt A** : bootstrappe l'application complete (sans /financial).
+- **Prompt B** : ecrans de test/simulation des schemas comptables (apres A).
 
-> Backend de reference : <https://github.com/ChristLandry/aggregateur>
+> Backend : <https://github.com/ChristLandry/aggregateur>
 > Swagger : `http://localhost:5000/swagger/v1/swagger.json`
-> Collection Postman : `docs/AggregatorPlatform.postman_collection.json`
+> Postman : `docs/AggregatorPlatform.postman_collection.json`
+
+> **Note design** : le design ci-dessous est inspire des dashboards admin
+> RH modernes (sidebar pliable + topbar + KPI cards + tableaux denses).
+> Si vous disposez d'une licence Gxon (LayoutDrop) ou autre template
+> commercial similaire, remplacez la section "Design System" par les
+> assets livres avec votre licence et demandez la conversion HTML -> Next.js.
+
+---
+
+## Design System (a injecter dans tous les prompts)
+
+```text
+## Design System
+
+Style general : dashboard admin moderne et dense, type "HR / FinOps",
+clean et professionnel. Inspiration : Linear, Vercel dashboard, Tabler
+admin, Soft UI Dashboard. PAS de glassmorphic, PAS de gradient ostentatoire.
+
+### Theme
+- Modes : light (defaut), dark, auto (suit prefers-color-scheme).
+- Switcher de theme dans la topbar.
+- Variables CSS exposees via Tailwind (classe `dark:` automatique).
+
+### Palette
+Light mode :
+  --background        #FAFBFC   (gris tres clair)
+  --surface           #FFFFFF
+  --surface-muted     #F4F5F7
+  --border            #E5E7EB
+  --text-primary      #0F172A   (slate-900)
+  --text-secondary    #64748B   (slate-500)
+  --text-muted        #94A3B8   (slate-400)
+  --accent            #4F46E5   (indigo-600)   <- couleur de marque
+  --accent-hover      #4338CA
+  --success           #10B981   (emerald-500)
+  --warning           #F59E0B   (amber-500)
+  --danger            #EF4444   (red-500)
+  --info              #3B82F6   (blue-500)
+
+Dark mode :
+  --background        #0B0F19
+  --surface           #111827
+  --surface-muted     #1F2937
+  --border            #1F2937
+  --text-primary      #F8FAFC
+  --text-secondary    #94A3B8
+  --text-muted        #64748B
+  --accent            #6366F1   (indigo-500, plus lumineux qu'en light)
+
+### Typographie
+- Famille : `Inter` (Google Fonts) en principal, fallback system-ui.
+- Echelle :
+    Display    32/40 semibold tracking-tight
+    H1         24/32 semibold
+    H2         20/28 semibold
+    H3         16/24 semibold
+    Body       14/20 normal
+    Small      12/18 normal
+    Mono       JetBrains Mono ou IBM Plex Mono pour les valeurs
+              numeriques dans les tables et les KPI.
+- Tracking : tracking-tight sur les titres uniquement.
+
+### Layout
+- Sidebar gauche fixe, 256px deploye / 64px collapse.
+    * Logo en haut (carre 40px + texte produit).
+    * Items : icone 18px + label, padding 10/14, rounded-md, hover
+      surface-muted, etat actif : fond accent/10 + texte accent + barre
+      gauche 2px accent.
+    * Sections separees par un petit label uppercase 11/16 muted.
+    * Footer sidebar : avatar utilisateur + nom + role.
+- Topbar : 64px, sticky top, fond surface, border-bottom.
+    * Gauche  : breadcrumb (page courante) + bouton collapse sidebar.
+    * Centre  : barre de recherche globale (Cmd+K) facultative.
+    * Droite  : PartnerSelector (combobox), theme toggle, notifications,
+      avatar avec menu (Profil, Parametres, Logout).
+- Container principal : padding 24px, max-width 1440px sur les pages
+  list, sans limite sur les dashboards.
+
+### Composants
+
+#### Card (la brique de base)
+- Fond surface, border 1px border-color, rounded-xl (12px), shadow-sm.
+- Padding interne 20/24.
+- Optionnel : icone 24px en haut a gauche dans un carre 40px arrondi
+  rounded-lg avec fond accent/10 et icone en accent.
+
+#### KPI Card (dashboard)
+- Card classique +
+    * Label uppercase 11/16 muted (ex: "Transactions du jour").
+    * Valeur 28/36 semibold (mono pour les chiffres).
+    * Delta : badge pill accent (vert +12%, rouge -4%) avec fleche.
+    * Mini sparkline 40px de haut, accent translucide.
+
+#### Tableau (DataTable)
+- Fond surface, en-tete sticky.
+- En-tete : fond surface-muted, texte 12/16 medium uppercase muted.
+- Lignes : 48px de haut, border-bottom border-color, hover surface-muted.
+- Cellule numerique : font-mono, align right.
+- Cellule status : Badge pill (success/warning/danger/info).
+- Cellule actions : 3 icones (Eye, Pencil, Trash) right-aligned.
+- Filtre/recherche au-dessus du tableau (Input ghost a gauche, Select
+  status a droite).
+- Pagination en bas : "1-10 sur 247" + boutons Precedent/Suivant +
+  selecteur PageSize (10/25/50).
+
+#### Boutons
+- Primary  : bg-accent text-white, hover accent-hover, rounded-md,
+             height 38px, px-16, font-medium 14.
+- Secondary: bg-surface border border-color text-primary, hover bg
+             surface-muted.
+- Ghost    : pas de fond, hover surface-muted, pour les actions discretes.
+- Destructive : bg-danger text-white.
+- Disabled : opacity-50 cursor-not-allowed.
+
+#### Formulaire
+- Label 13/18 medium au-dessus du champ.
+- Input 38px de haut, border border-color, rounded-md, focus
+  ring-accent ring-2 ring-offset-0.
+- Helper text 12/16 muted ; erreur 12/16 danger.
+- Boutons groupes en bas a droite (Cancel ghost + Save primary).
+- Fieldsets espaces de 24px.
+
+#### Badge / Status pill
+- Hauteur 22px, padding 0/8, rounded-full, 11/14 medium uppercase.
+- Couleur de fond = couleur status/10, texte = couleur status.
+
+#### Modal / Sheet
+- Backdrop bg-black/50 (light) ou bg-black/70 (dark).
+- Modal centre 480-640px, rounded-xl, shadow-xl, header avec titre +
+  bouton X, footer separe d'un border-top avec les actions.
+- Sheet (drawer) : slide depuis la droite, 480px, meme structure.
+
+#### Toast (sonner)
+- Position bottom-right, 4 niveaux (success/info/warning/danger),
+  rounded-md, icone gauche, fermeture auto 4s.
+
+### Iconographie
+- lucide-react EXCLUSIVEMENT, taille 18px par defaut, 24px sur les cards
+  d'entete, stroke-width 1.75.
+
+### Animations
+- Toutes les transitions : 150ms ease-out par defaut.
+- Hover : background change uniquement (pas de transform).
+- Loading : Skeleton de shadcn avec shimmer subtil.
+- Page transition : fade 200ms via framer-motion (optionnel).
+
+### Densite
+- Mode "compact" optionnel via toggle dans les Settings : reduit les
+  hauteurs de ligne de tableau de 48 -> 40px et les paddings de card
+  de 24 -> 16px.
+
+### Accessibilite
+- Tous les composants shadcn (radix-ui) sont a11y par defaut : focus
+  visible, ARIA, navigation clavier.
+- Contraste AA minimum sur tout le texte.
+- Pas d'information seulement via la couleur (ajouter icone ou label).
+```
 
 ---
 
 ## Prompt A — Bootstrap du front Next.js (sans la zone Financial)
 
+> **Avant de coller ce prompt** : prefixe-le avec le bloc "Design System"
+> ci-dessus. Le prompt suppose que ce bloc est dans la meme conversation.
+
 ```text
 Tu es un expert Next.js 15 / React 19 / TypeScript. Construis un
 front-end complet pour la plateforme AggregatorPlatform en suivant
-strictement le contrat ci-dessous.
+strictement (a) le Design System fourni au-dessus de ce prompt et
+(b) le contrat ci-dessous.
 
 ## Stack (impose)
 - Next.js 15 (App Router), TypeScript strict, React 19
@@ -204,10 +365,15 @@ commandes pour demarrer (npm install + npm run dev).
 
 A executer **apres** que le Prompt A a genere l'application.
 
+> **Avant de coller** : si tu es dans une nouvelle conversation, prefixe
+> par le Design System ; sinon il est deja en contexte.
+
 ```text
 Etend l'application Next.js precedente avec un module "Sandbox schemas
-comptables" sous /accounting/schemas/[id]/sandbox. Objectif : permettre
-aux utilisateurs de TESTER un schema sans creer de vraie transaction.
+comptables" sous /accounting/schemas/[id]/sandbox. Tu DOIS respecter le
+Design System defini au debut de cette conversation. Objectif :
+permettre aux utilisateurs de TESTER un schema sans creer de vraie
+transaction.
 
 ## Contexte metier (rappel)
 - Une transaction genere N mouvements selon le schema applique.
