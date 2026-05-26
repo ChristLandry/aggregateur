@@ -61,3 +61,9 @@ public interface IRefreshTokenRepository : IRepository<RefreshToken>
 {
     Task<RefreshToken?> GetByTokenAsync(string token, CancellationToken cancellationToken = default);
 }
+
+public interface IPartnerEndpointRepository : IRepository<PartnerEndpoint>
+{
+    Task<PartnerEndpoint?> GetByPartnerAndKeyAsync(Guid partnerId, AggregatorPlatform.Domain.Enums.FinancialEndpointKey key, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PartnerEndpoint>> GetByPartnerAsync(Guid partnerId, CancellationToken cancellationToken = default);
+}

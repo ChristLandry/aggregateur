@@ -40,6 +40,35 @@ public class AccountingSchemaLineConfiguration : IEntityTypeConfiguration<Accoun
     }
 }
 
+public class PartnerEndpointConfiguration : IEntityTypeConfiguration<PartnerEndpoint>
+{
+    public void Configure(EntityTypeBuilder<PartnerEndpoint> b)
+    {
+        b.ToTable("PartnerEndpoints");
+        b.HasKey(x => x.PartnerEndpointId);
+        b.Property(x => x.EndpointKey).HasConversion<int>();
+
+        // Unicite : un partenaire ne peut avoir qu'un seul lien par endpoint
+        // (filtre IsDeleted=0 pour permettre la reutilisation apres soft-delete).
+        b.HasIndex(x => new { x.PartnerId, x.EndpointKey })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0")
+            .HasDatabaseName("IX_PartnerEndpoints_Partner_Key_Unique");
+
+        b.HasOne(x => x.Partner)
+            .WithMany()
+            .HasForeignKey(x => x.PartnerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.HasOne(x => x.Schema)
+            .WithMany()
+            .HasForeignKey(x => x.SchemaId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        b.HasQueryFilter(x => !x.IsDeleted);
+    }
+}
+
 public class MovementConfiguration : IEntityTypeConfiguration<Movement>
 {
     public void Configure(EntityTypeBuilder<Movement> b)

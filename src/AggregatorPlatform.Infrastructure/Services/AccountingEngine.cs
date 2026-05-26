@@ -2,6 +2,7 @@ using AggregatorPlatform.Application.Interfaces;
 using AggregatorPlatform.Domain.Entities;
 using AggregatorPlatform.Domain.Enums;
 using AggregatorPlatform.Domain.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace AggregatorPlatform.Infrastructure.Services;
@@ -27,6 +28,7 @@ public class AccountingEngine : IAccountingEngine
     private readonly IPartnerAccountRepository _accounts;
     private readonly IRepository<PartnerAccountMovement> _accountMovements;
     private readonly IPartnerRepository _partners;
+    private readonly IPartnerEndpointRepository? _endpoints;
     private readonly IFormulaEvaluator _evaluator;
     private readonly ILogger<AccountingEngine> _logger;
 
@@ -37,13 +39,15 @@ public class AccountingEngine : IAccountingEngine
         IRepository<PartnerAccountMovement> accountMovements,
         IPartnerRepository partners,
         IFormulaEvaluator evaluator,
-        ILogger<AccountingEngine> logger)
+        ILogger<AccountingEngine> logger,
+        IPartnerEndpointRepository? endpoints = null)
     {
         _schemas = schemas;
         _movements = movements;
         _accounts = accounts;
         _accountMovements = accountMovements;
         _partners = partners;
+        _endpoints = endpoints;
         _evaluator = evaluator;
         _logger = logger;
     }
@@ -52,7 +56,23 @@ public class AccountingEngine : IAccountingEngine
     {
         var (side, channel) = ResolveSideChannel(transaction.TransactionType);
 
-        var schema = await _schemas.SelectApplicableSchemaAsync(transaction.PartnerId,
+        // 1) Resolution prioritaire : schema attache via PartnerEndpoint (configuration explicite).
+        AccountingSchema? schema = null;
+        if (_endpoints is not null && TryMapToEndpointKey(transaction.TransactionType, out var key))
+        {
+            var link = await _endpoints.GetByPartnerAndKeyAsync(transaction.PartnerId, key, cancellationToken);
+            if (link?.SchemaId is not null)
+            {
+                schema = await _schemas.GetByIdAsync(link.SchemaId.Value, cancellationToken);
+                if (schema is not null)
+                    schema = await _schemas.Query()
+                        .Include(s => s.Lines)
+                        .FirstOrDefaultAsync(s => s.SchemaId == link.SchemaId.Value, cancellationToken);
+            }
+        }
+
+        // 2) Fallback : resolution implicite par (type, side, channel, priority).
+        schema ??= await _schemas.SelectApplicableSchemaAsync(transaction.PartnerId,
             transaction.TransactionType, side, channel, cancellationToken);
 
         if (schema is null)
@@ -179,6 +199,20 @@ public class AccountingEngine : IAccountingEngine
             MovementDate = DateTime.UtcNow,
             Description = $"{tx.TransactionType} - {tx.PartnerTransactionRef}"
         }, ct);
+    }
+
+    /// <summary>Mappe le TransactionType vers la cle d'endpoint configurable.
+    /// WalletCancel n'est pas configurable (derive de la transaction d'origine).</summary>
+    private static bool TryMapToEndpointKey(TransactionType type, out FinancialEndpointKey key)
+    {
+        switch (type)
+        {
+            case TransactionType.BankDebit:    key = FinancialEndpointKey.BankDebit;    return true;
+            case TransactionType.BankCredit:   key = FinancialEndpointKey.BankCredit;   return true;
+            case TransactionType.WalletDebit:  key = FinancialEndpointKey.WalletDebit;  return true;
+            case TransactionType.WalletCredit: key = FinancialEndpointKey.WalletCredit; return true;
+            default: key = default; return false;
+        }
     }
 
     private static (TransactionSide, Channel) ResolveSideChannel(TransactionType type) => type switch

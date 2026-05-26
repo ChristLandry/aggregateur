@@ -1780,6 +1780,267 @@
       ]
     },
     {
+      "name": "Partner-Endpoints",
+      "description": "Liaisons partenaire <-> endpoint financier + schema comptable optionnel.",
+      "item": [
+        {
+          "name": "List partner-endpoints",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partner-endpoints?partnerId={{partnerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partner-endpoints"
+              ],
+              "query": [
+                {
+                  "key": "partnerId",
+                  "value": "{{partnerId}}",
+                  "description": "Optionnel : filtre par partenaire."
+                }
+              ]
+            },
+            "description": "Liste les liaisons configurees. Necessite role Admin/SuperAdmin/Finance."
+          }
+        },
+        {
+          "name": "Get partner-endpoint by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partner-endpoints/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partner-endpoints",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "description": "Detail d'une liaison (avec nom du schema attache si present)."
+          }
+        },
+        {
+          "name": "Create partner-endpoint link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partner-endpoints",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partner-endpoints"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerId\": \"{{partnerId}}\",\n  \"endpointKey\": 0,\n  \"schemaId\": \"{{schemaId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "endpointKey : 0=BankDebit 1=BankCredit 2=WalletDebit 3=WalletCredit. schemaId optionnel."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "  pm.environment.set(\"createdPartnerEndpointId\", json.data);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Attach/replace schema",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partner-endpoints/:id/schema",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partner-endpoints",
+                ":id",
+                "schema"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"schemaId\": \"{{schemaId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Attache un schema comptable a cette liaison (ou remplace celui en place)."
+          }
+        },
+        {
+          "name": "Detach schema",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partner-endpoints/:id/schema",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partner-endpoints",
+                ":id",
+                "schema"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "description": "Detache le schema sans supprimer la liaison Partner-Endpoint."
+          }
+        },
+        {
+          "name": "Delete partner-endpoint link",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-Id",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partner-endpoints/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partner-endpoints",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "description": "Supprime la liaison complete (Partner + Endpoint + Schema)."
+          }
+        }
+      ]
+    },
+    {
       "name": "Dashboard",
       "description": "KPIs admin et partenaire.",
       "item": [

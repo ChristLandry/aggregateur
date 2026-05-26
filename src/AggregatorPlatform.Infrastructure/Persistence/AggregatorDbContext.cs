@@ -33,6 +33,7 @@ public class AggregatorDbContext : DbContext
     public DbSet<WebhookLog> WebhookLogs => Set<WebhookLog>();
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PartnerEndpoint> PartnerEndpoints => Set<PartnerEndpoint>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

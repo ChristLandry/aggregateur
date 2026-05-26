@@ -234,6 +234,20 @@ DELETE /api/v1/accounting/schemas/:id/lines/:lineId
 GET    /api/v1/accounting/movements           ?fromDate&toDate&account&transactionId&page&pageSize
 GET    /api/v1/accounting/transactions/:id/movements
 
+### Partner-Endpoints — liaison Partenaire <-> route financiere (+ schema comptable optionnel)
+(header Authorization, role Admin/SuperAdmin/Finance)
+GET    /api/v1/partner-endpoints                ?partnerId=        liste (filtre optionnel)
+GET    /api/v1/partner-endpoints/:id                                detail
+POST   /api/v1/partner-endpoints                                    { partnerId, endpointKey, schemaId? }
+DELETE /api/v1/partner-endpoints/:id                                supprime la liaison complete
+PUT    /api/v1/partner-endpoints/:id/schema                         { schemaId } attache/remplace
+DELETE /api/v1/partner-endpoints/:id/schema                         detache (sans supprimer le lien)
+
+endpointKey enum (FinancialEndpointKey) :
+  0 BankDebit  1 BankCredit  2 WalletDebit  3 WalletCredit
+Unicite : un partenaire ne peut avoir qu'UN seul lien par endpointKey.
+SchemaId nullable : on peut creer un lien sans schema, puis attacher plus tard.
+
 ### Dashboard (header Authorization)
 GET    /api/v1/dashboard/summary              admin
 GET    /api/v1/dashboard/partners/:id/summary
@@ -255,6 +269,7 @@ Toutes les reponses (sauf exports binaires) suivent la forme :
 { success: boolean, data: T, errorCode?: string, errorMessage?: string, timestamp: string }
 
 ## Enums
+FinancialEndpointKey : 0 BankDebit, 1 BankCredit, 2 WalletDebit, 3 WalletCredit
 TransactionType    : 0 BankDebit, 1 BankCredit, 2 WalletDebit, 3 WalletCredit, 4 WalletCancel
 TransactionSide    : 0 Debit, 1 Credit
 Channel            : 0 Bank, 1 Wallet
@@ -295,6 +310,7 @@ app/
   (app)/accounting/schemas/page.tsx
   (app)/accounting/schemas/[id]/page.tsx
   (app)/accounting/movements/page.tsx
+  (app)/partner-endpoints/page.tsx       # matrice configuration par partenaire
   (app)/reports/page.tsx
 components/
   ui/...                          # shadcn
@@ -310,6 +326,7 @@ lib/
   api/customers.ts
   api/subscriptions.ts
   api/accounting.ts
+  api/partner-endpoints.ts
   api/dashboard.ts
   api/reports.ts
   api/auth.ts
@@ -353,6 +370,16 @@ NEXT_PUBLIC_DEFAULT_PARTNER_ID=11111111-1111-1111-1111-111111111111
    qui telecharge le binaire.
 9. Selecteur de partenaire actif persistant entre sessions.
 10. NE PAS implementer la zone Financial (debit/credit/cancel).
+11. Page "Partner-Endpoints" sous forme de MATRICE :
+    - Colonnes : BankDebit | BankCredit | WalletDebit | WalletCredit
+    - Lignes   : un partenaire par ligne
+    - Cellule  :
+        * vide   -> bouton "Activer" (POST /partner-endpoints)
+        * pleine -> chip "Active" + nom du schema attache (ou "Aucun schema")
+                    + menu : "Choisir schema" (combobox -> PUT /:id/schema)
+                            "Detacher schema" (DELETE /:id/schema)
+                            "Desactiver l'endpoint" (DELETE /:id)
+    - Recharge optimiste via React Query (invalidateQueries).
 
 Genere le projet COMPLET, fichier par fichier, sans demander confirmation.
 Utilise les versions LATEST stables des dependances. Termine par les

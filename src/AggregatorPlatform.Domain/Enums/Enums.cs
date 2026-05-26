@@ -106,3 +106,20 @@ public enum UserRole
     Partner = 3,
     ReadOnly = 4
 }
+
+/// <summary>
+/// Identifiants des endpoints financiers configurables par partenaire.
+/// Mapping vers TransactionType :
+///   BankDebit    -> TransactionType.BankDebit    (0)
+///   BankCredit   -> TransactionType.BankCredit   (1)
+///   WalletDebit  -> TransactionType.WalletDebit  (2)
+///   WalletCredit -> TransactionType.WalletCredit (3)
+/// WalletCancel n'est pas configurable : il est derive de la transaction d'origine.
+/// </summary>
+public enum FinancialEndpointKey
+{
+    BankDebit    = 0,
+    BankCredit   = 1,
+    WalletDebit  = 2,
+    WalletCredit = 3,
+}

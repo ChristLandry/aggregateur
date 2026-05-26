@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<IWebhookLogRepository, WebhookLogRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IPartnerEndpointRepository, PartnerEndpointRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // Services

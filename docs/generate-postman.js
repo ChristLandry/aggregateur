@@ -663,6 +663,69 @@ if (json.success && json.data) {
 ];
 
 // ---------------------------------------------------------------------------
+// PARTNER ENDPOINTS (config Partner <-> route financiere + schema)
+// ---------------------------------------------------------------------------
+const partnerEndpointItems = [
+  ep({
+    name: 'List partner-endpoints',
+    method: 'GET',
+    path: '/api/v1/partner-endpoints',
+    skipPartner: true,
+    query: [
+      { key: 'partnerId', value: '{{partnerId}}', description: 'Optionnel : filtre par partenaire.' },
+    ],
+    description: 'Liste les liaisons configurees. Necessite role Admin/SuperAdmin/Finance.',
+  }),
+  ep({
+    name: 'Get partner-endpoint by id',
+    method: 'GET',
+    path: '/api/v1/partner-endpoints/:id',
+    skipPartner: true,
+    description: 'Detail d\'une liaison (avec nom du schema attache si present).',
+  }),
+  ep({
+    name: 'Create partner-endpoint link',
+    method: 'POST',
+    path: '/api/v1/partner-endpoints',
+    skipPartner: true,
+    body: {
+      partnerId: '{{partnerId}}',
+      endpointKey: 0,
+      schemaId: '{{schemaId}}',
+    },
+    description: 'endpointKey : 0=BankDebit 1=BankCredit 2=WalletDebit 3=WalletCredit. schemaId optionnel.',
+    tests: `
+const json = pm.response.json();
+if (json.success && json.data) {
+  pm.environment.set("createdPartnerEndpointId", json.data);
+}
+`.trim(),
+  }),
+  ep({
+    name: 'Attach/replace schema',
+    method: 'PUT',
+    path: '/api/v1/partner-endpoints/:id/schema',
+    skipPartner: true,
+    body: { schemaId: '{{schemaId}}' },
+    description: 'Attache un schema comptable a cette liaison (ou remplace celui en place).',
+  }),
+  ep({
+    name: 'Detach schema',
+    method: 'DELETE',
+    path: '/api/v1/partner-endpoints/:id/schema',
+    skipPartner: true,
+    description: 'Detache le schema sans supprimer la liaison Partner-Endpoint.',
+  }),
+  ep({
+    name: 'Delete partner-endpoint link',
+    method: 'DELETE',
+    path: '/api/v1/partner-endpoints/:id',
+    skipPartner: true,
+    description: 'Supprime la liaison complete (Partner + Endpoint + Schema).',
+  }),
+];
+
+// ---------------------------------------------------------------------------
 // DASHBOARD
 // ---------------------------------------------------------------------------
 const dashboardItems = [
@@ -827,6 +890,7 @@ const collection = {
     folder('Subscriptions', 'Creation directe / consultation / changement de statut.', subscriptionItems),
     folder('Financial', 'Initiation de transactions Bank/Wallet (debit/credit/cancel) + consultations.', financialItems),
     folder('Accounting', 'Schemas comptables et journaux.', accountingItems),
+    folder('Partner-Endpoints', 'Liaisons partenaire <-> endpoint financier + schema comptable optionnel.', partnerEndpointItems),
     folder('Dashboard', 'KPIs admin et partenaire.', dashboardItems),
     folder('Reports', 'Reporting et exports CSV/XLSX.', reportItems),
     folder('System', 'Health-check, metrics Prometheus, Swagger.', systemItems),
@@ -871,6 +935,7 @@ const environment = {
     { key: 'createdTransactionId',  value: '', enabled: true, type: 'default' },
     { key: 'createdSchemaId',       value: '', enabled: true, type: 'default' },
     { key: 'createdLineId',         value: '', enabled: true, type: 'default' },
+    { key: 'createdPartnerEndpointId', value: '', enabled: true, type: 'default' },
   ],
   _postman_variable_scope: 'environment',
   _postman_exported_at: new Date().toISOString(),

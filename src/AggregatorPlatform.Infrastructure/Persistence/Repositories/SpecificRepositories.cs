@@ -27,6 +27,17 @@ public class CustomerRepository : Repository<Customer>, ICustomerRepository
         => Set.Include(c => c.Subscriptions).FirstOrDefaultAsync(c => c.CustomerId == customerId, cancellationToken);
 }
 
+public class PartnerEndpointRepository : Repository<PartnerEndpoint>, IPartnerEndpointRepository
+{
+    public PartnerEndpointRepository(AggregatorDbContext db) : base(db) { }
+
+    public Task<PartnerEndpoint?> GetByPartnerAndKeyAsync(Guid partnerId, AggregatorPlatform.Domain.Enums.FinancialEndpointKey key, CancellationToken cancellationToken = default)
+        => Set.FirstOrDefaultAsync(e => e.PartnerId == partnerId && e.EndpointKey == key, cancellationToken);
+
+    public async Task<IReadOnlyList<PartnerEndpoint>> GetByPartnerAsync(Guid partnerId, CancellationToken cancellationToken = default)
+        => await Set.Where(e => e.PartnerId == partnerId).ToListAsync(cancellationToken);
+}
+
 public class SubscriptionRepository : Repository<Subscription>, ISubscriptionRepository
 {
     public SubscriptionRepository(AggregatorDbContext db) : base(db) { }
