@@ -38,19 +38,14 @@ public class SubscriptionConfiguration : IEntityTypeConfiguration<Subscription>
         b.Property(x => x.PhoneOperator).IsRequired().HasMaxLength(50);
         b.Property(x => x.Status).HasConversion<int>();
 
-        // Regle metier : une souscription est unique par (PartnerId, PhoneNumber) ET par (PartnerId, BankAccountNumber).
-        // Un meme client peut donc souscrire chez plusieurs partenaires avec les memes coordonnees,
-        // mais ne peut pas creer deux souscriptions actives identiques chez le meme partenaire.
-        // Les index sont filtres sur IsDeleted = 0 pour permettre la reutilisation apres soft-delete.
-        b.HasIndex(x => new { x.PartnerId, x.PhoneNumber })
+        // Regle metier : une souscription est unique par le triplet exact
+        // (PartnerId, BankAccountNumber, PhoneNumber). Le meme bank account peut etre
+        // reutilise avec un autre phone et inversement, y compris chez le meme partenaire.
+        // L'index est filtre sur IsDeleted = 0 pour permettre la reutilisation apres soft-delete.
+        b.HasIndex(x => new { x.PartnerId, x.BankAccountNumber, x.PhoneNumber })
             .IsUnique()
             .HasFilter("[IsDeleted] = 0")
-            .HasDatabaseName("IX_Subscriptions_Partner_Phone_Unique");
-
-        b.HasIndex(x => new { x.PartnerId, x.BankAccountNumber })
-            .IsUnique()
-            .HasFilter("[IsDeleted] = 0")
-            .HasDatabaseName("IX_Subscriptions_Partner_BankAccount_Unique");
+            .HasDatabaseName("IX_Subscriptions_Partner_Bank_Phone_Unique");
 
         // Index non-unique pour les listings par client
         b.HasIndex(x => x.CustomerId).HasDatabaseName("IX_Subscriptions_CustomerId");

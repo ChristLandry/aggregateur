@@ -31,11 +31,12 @@ public class SubscriptionRepository : Repository<Subscription>, ISubscriptionRep
 {
     public SubscriptionRepository(AggregatorDbContext db) : base(db) { }
 
-    public Task<bool> ExistsByPartnerAndPhoneAsync(Guid partnerId, string phoneNumber, CancellationToken cancellationToken = default)
-        => Set.AnyAsync(s => s.PartnerId == partnerId && s.PhoneNumber == phoneNumber, cancellationToken);
-
-    public Task<bool> ExistsByPartnerAndBankAccountAsync(Guid partnerId, string bankAccountNumber, CancellationToken cancellationToken = default)
-        => Set.AnyAsync(s => s.PartnerId == partnerId && s.BankAccountNumber == bankAccountNumber, cancellationToken);
+    public Task<bool> ExistsByPartnerBankAndPhoneAsync(Guid partnerId, string bankAccountNumber, string phoneNumber, CancellationToken cancellationToken = default)
+        => Set.AnyAsync(s =>
+            s.PartnerId == partnerId &&
+            s.BankAccountNumber == bankAccountNumber &&
+            s.PhoneNumber == phoneNumber,
+            cancellationToken);
 
     public async Task<IReadOnlyList<Subscription>> GetByCustomerAsync(Guid customerId, CancellationToken cancellationToken = default)
         => await Set.Where(s => s.CustomerId == customerId).ToListAsync(cancellationToken);
