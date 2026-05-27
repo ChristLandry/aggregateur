@@ -21,13 +21,13 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// Ajoute automatiquement X-Partner-Id sur toutes les requetes sauf indication contraire.",
+          "// Ajoute automatiquement X-Partner-ApiKey sur toutes les requetes sauf indication contraire.",
           "// Pour les endpoints qui ne veulent pas du header, il est marque 'disabled:true' dans la requete.",
           "const url = pm.request.url.getPath();",
-          "const partnerId = pm.environment.get('partnerId');",
-          "const hasHeader = pm.request.headers.has('X-Partner-Id');",
+          "const partnerApiKey = pm.environment.get('partnerApiKey');",
+          "const hasHeader = pm.request.headers.has('X-Partner-ApiKey');",
           "if (partnerId && !hasHeader) {",
-          "  pm.request.headers.add({ key: 'X-Partner-Id', value: partnerId });",
+          "  pm.request.headers.add({ key: 'X-Partner-ApiKey', value: partnerApiKey });",
           "}"
         ]
       }
@@ -58,7 +58,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -124,7 +124,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -185,7 +185,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -234,7 +234,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -289,7 +289,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -317,7 +317,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -358,7 +358,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -407,7 +407,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -454,7 +454,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -506,7 +506,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -544,7 +544,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -586,7 +586,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -1395,13 +1395,100 @@
           }
         },
         {
-          "name": "Get transaction by id",
+          "name": "Search transactions (admin)",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Accept",
                 "value": "application/json"
+              },
+              {
+                "key": "X-Partner-ApiKey",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/transactions?fromDate=&toDate=&partnerId=&status=&bankAccount=&phoneNumber=&partnerTransactionRef=&type=&page=1&pageSize=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "",
+                  "description": "ISO-8601, borne basse sur InitiatedAt"
+                },
+                {
+                  "key": "toDate",
+                  "value": "",
+                  "description": "ISO-8601, borne haute"
+                },
+                {
+                  "key": "partnerId",
+                  "value": "",
+                  "description": "Optionnel"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "0 Pending, 1 Success, 2 Failed, 3 Cancelled, 4 Reversed"
+                },
+                {
+                  "key": "bankAccount",
+                  "value": "",
+                  "description": "Numero de compte exact"
+                },
+                {
+                  "key": "phoneNumber",
+                  "value": "",
+                  "description": "Numero de telephone exact"
+                },
+                {
+                  "key": "partnerTransactionRef",
+                  "value": "",
+                  "description": "Recherche partielle"
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "description": "TransactionType 0..4"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "50",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Recherche paginee, tous filtres optionnels. Role Admin/SuperAdmin/Finance."
+          }
+        },
+        {
+          "name": "Get transaction by id (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-ApiKey",
+                "value": "",
+                "disabled": true
               }
             ],
             "url": {
@@ -1424,7 +1511,46 @@
                 }
               ]
             },
-            "description": "Variable de chemin: :id (utilise {{transactionId}})."
+            "description": "Detail transaction. Variable de chemin :id (utilise {{transactionId}})."
+          }
+        },
+        {
+          "name": "Get movements of a transaction (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-ApiKey",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/transactions/:id/movements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financial",
+                "transactions",
+                ":id",
+                "movements"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{id}}",
+                  "description": "Path variable: id"
+                }
+              ]
+            },
+            "description": "Mouvements comptables generes par la transaction, ordre LineOrder croissant."
           }
         }
       ]
@@ -1793,7 +1919,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -1829,7 +1955,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -1870,7 +1996,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -1926,7 +2052,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -1973,7 +2099,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2011,7 +2137,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2054,7 +2180,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2084,7 +2210,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2128,7 +2254,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2179,7 +2305,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2220,7 +2346,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2261,7 +2387,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2303,7 +2429,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2353,7 +2479,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2398,7 +2524,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2428,7 +2554,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }
@@ -2458,7 +2584,7 @@
                 "value": "application/json"
               },
               {
-                "key": "X-Partner-Id",
+                "key": "X-Partner-ApiKey",
                 "value": "",
                 "disabled": true
               }

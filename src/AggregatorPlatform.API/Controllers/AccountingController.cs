@@ -2,6 +2,8 @@ using AggregatorPlatform.Application.Common;
 using AggregatorPlatform.Application.DTOs;
 using AggregatorPlatform.Application.Features.Accounting.Commands;
 using AggregatorPlatform.Application.Features.Accounting.Queries;
+using AggregatorPlatform.Application.Features.Financial.Queries;
+using AggregatorPlatform.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -41,6 +43,37 @@ public class AccountingController : BaseApiController
     [Authorize(Roles = "Admin,SuperAdmin")]
     public async Task<ActionResult<ApiResponse>> RemoveLine(Guid id, Guid lineId, CancellationToken ct)
         => ToResponse(await Mediator.Send(new RemoveSchemaLineCommand(id, lineId), ct));
+
+    /// <summary>List transactions (paginated). Optional filters: partner, account, phone, dates.</summary>
+    [HttpGet("transactions")]
+    public async Task<ActionResult<ApiResponse<PaginatedResult<TransactionDto>>>> GetTransactions(
+        [FromQuery] Guid? partnerId,
+        [FromQuery] string? account,
+        [FromQuery] string? phoneNumber,
+        [FromQuery] string? number,
+        [FromQuery] DateTime? fromDate,
+        [FromQuery] DateTime? toDate,
+        [FromQuery] TransactionStatus? status,
+        [FromQuery] TransactionType? type,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+        => ToResponse(await Mediator.Send(new GetTransactionsQuery(
+            partnerId,
+            account,
+            phoneNumber,
+            number,
+            status,
+            type,
+            fromDate,
+            toDate,
+            page,
+            pageSize), ct));
+
+    /// <summary>Get a transaction by id.</summary>
+    [HttpGet("transactions/{id:guid}")]
+    public async Task<ActionResult<ApiResponse<TransactionDto>>> GetTransaction(Guid id, CancellationToken ct)
+        => ToResponse(await Mediator.Send(new GetTransactionByIdQuery(id), ct));
 
     /// <summary>List movements (paginated). Filters: dates, account, transaction.</summary>
     [HttpGet("movements")]

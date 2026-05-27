@@ -70,7 +70,8 @@
       "Bash(node -e ' *)",
       "Bash(xargs ls -la)",
       "Bash(xargs ls)",
-      "Bash(node docs/generate-postman.js)"
+      "Bash(node docs/generate-postman.js)",
+      "WebFetch(domain:gxon.layoutdrop.com)"
     ]
   }
 }

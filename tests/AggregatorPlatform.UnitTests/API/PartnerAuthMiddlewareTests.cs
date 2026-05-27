@@ -13,6 +13,9 @@ namespace AggregatorPlatform.UnitTests.API;
 
 public class PartnerAuthMiddlewareTests
 {
+    private const string TestApiKey = "raw-api-key-123";
+    private const string TestApiKeyHash = "hash-of-raw-api-key-123";
+
     private static (PartnerAuthMiddleware middleware, Mock<IPartnerRepository> partners, Mock<ICacheService> cache, Mock<IEncryptionService> enc, bool[] nextCalled)
         Build()
     {
@@ -20,6 +23,10 @@ public class PartnerAuthMiddlewareTests
         var partners = new Mock<IPartnerRepository>();
         var cache = new Mock<ICacheService>();
         var enc = new Mock<IEncryptionService>();
+        // ComputeSha256 mocke pour ne pas dependre du vrai algorithme.
+        enc.Setup(e => e.ComputeSha256(TestApiKey)).Returns(TestApiKeyHash);
+        cache.Setup(r => r.GetAsync<Partner>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Partner?)null);
         var mw = new PartnerAuthMiddleware(_ =>
         {
             nextCalled[0] = true;
@@ -40,10 +47,26 @@ public class PartnerAuthMiddlewareTests
     }
 
     [Fact]
-    public async Task Returns_401_when_partner_id_header_missing()
+    public async Task Returns_401_when_apikey_header_missing()
     {
         var (mw, partners, cache, enc, nextCalled) = Build();
         var ctx = BuildContext("/api/v1/financial/bank/balance");
+
+        await mw.Invoke(ctx, partners.Object, cache.Object, enc.Object);
+
+        ctx.Response.StatusCode.Should().Be(401);
+        nextCalled[0].Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Returns_401_when_apikey_unknown()
+    {
+        var (mw, partners, cache, enc, nextCalled) = Build();
+        partners.Setup(p => p.GetByApiKeyHashAsync(TestApiKeyHash, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Partner?)null);
+
+        var ctx = BuildContext("/api/v1/financial/bank/balance",
+            headers: new Dictionary<string, string> { ["X-Partner-ApiKey"] = TestApiKey });
 
         await mw.Invoke(ctx, partners.Object, cache.Object, enc.Object);
 
@@ -56,19 +79,18 @@ public class PartnerAuthMiddlewareTests
     {
         var (mw, partners, cache, enc, nextCalled) = Build();
         var partnerId = Guid.NewGuid();
-        partners.Setup(p => p.GetWithAccountAsync(partnerId, It.IsAny<CancellationToken>()))
+        partners.Setup(p => p.GetByApiKeyHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Partner
             {
                 PartnerId = partnerId,
                 BaseUrl = "https://api.partner.com",
+                ApiKey = TestApiKeyHash,
                 Status = PartnerStatus.Inactive,
                 RateLimitPerMin = 100
             });
-        cache.Setup(r => r.GetAsync<Partner>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Partner?)null);
 
         var ctx = BuildContext("/api/v1/financial/bank/balance",
-            headers: new Dictionary<string, string> { ["X-Partner-Id"] = partnerId.ToString() });
+            headers: new Dictionary<string, string> { ["X-Partner-ApiKey"] = TestApiKey });
 
         await mw.Invoke(ctx, partners.Object, cache.Object, enc.Object);
         ctx.Response.StatusCode.Should().Be(401);
@@ -76,36 +98,16 @@ public class PartnerAuthMiddlewareTests
     }
 
     [Fact]
-    public async Task Returns_401_when_host_does_not_match()
-    {
-        var (mw, partners, cache, enc, nextCalled) = Build();
-        var partnerId = Guid.NewGuid();
-        partners.Setup(p => p.GetWithAccountAsync(partnerId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Partner
-            {
-                PartnerId = partnerId,
-                BaseUrl = "https://expected.partner.com",
-                Status = PartnerStatus.Active,
-                RateLimitPerMin = 100
-            });
-
-        var ctx = BuildContext("/api/v1/financial/bank/balance", host: "evil.com",
-            headers: new Dictionary<string, string> { ["X-Partner-Id"] = partnerId.ToString() });
-
-        await mw.Invoke(ctx, partners.Object, cache.Object, enc.Object);
-        ctx.Response.StatusCode.Should().Be(401);
-    }
-
-    [Fact]
     public async Task Returns_429_when_rate_limit_exceeded()
     {
         var (mw, partners, cache, enc, nextCalled) = Build();
         var partnerId = Guid.NewGuid();
-        partners.Setup(p => p.GetWithAccountAsync(partnerId, It.IsAny<CancellationToken>()))
+        partners.Setup(p => p.GetByApiKeyHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Partner
             {
                 PartnerId = partnerId,
                 BaseUrl = "https://api.partner.com",
+                ApiKey = TestApiKeyHash,
                 Status = PartnerStatus.Active,
                 RateLimitPerMin = 5
             });
@@ -113,7 +115,7 @@ public class PartnerAuthMiddlewareTests
             .ReturnsAsync(6);
 
         var ctx = BuildContext("/api/v1/financial/bank/balance",
-            headers: new Dictionary<string, string> { ["X-Partner-Id"] = partnerId.ToString() });
+            headers: new Dictionary<string, string> { ["X-Partner-ApiKey"] = TestApiKey });
 
         await mw.Invoke(ctx, partners.Object, cache.Object, enc.Object);
         ctx.Response.StatusCode.Should().Be(429);
@@ -125,6 +127,15 @@ public class PartnerAuthMiddlewareTests
     {
         var (mw, partners, cache, enc, nextCalled) = Build();
         var ctx = BuildContext("/api/v1/auth/login");
+        await mw.Invoke(ctx, partners.Object, cache.Object, enc.Object);
+        nextCalled[0].Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Bypasses_financial_admin_transactions_path()
+    {
+        var (mw, partners, cache, enc, nextCalled) = Build();
+        var ctx = BuildContext("/api/v1/financial/transactions");
         await mw.Invoke(ctx, partners.Object, cache.Object, enc.Object);
         nextCalled[0].Should().BeTrue();
     }

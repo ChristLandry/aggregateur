@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using AggregatorPlatform.Application.Interfaces;
 using AggregatorPlatform.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -30,6 +31,20 @@ public class AggregatorWebAppFactory : WebApplicationFactory<Program>
             services.AddSingleton(Mock.Of<IBankApiClient>());
             services.AddSingleton(Mock.Of<IWalletApiClient>());
         });
+    }
+
+    /// <summary>
+    /// Cree un HttpClient pre-decore avec un Bearer token et un X-Partner-ApiKey
+    /// factices pour les tests qui exercent les routes authentifiees.
+    /// La validation JWT reelle reste active : les tests qui en dependent doivent
+    /// remplacer ce stub par un token signe avec la cle de test.
+    /// </summary>
+    public HttpClient CreateAuthenticatedClient()
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "integration-test-token");
+        client.DefaultRequestHeaders.Add("X-Partner-ApiKey", "integration-test-apikey");
+        return client;
     }
 }
 

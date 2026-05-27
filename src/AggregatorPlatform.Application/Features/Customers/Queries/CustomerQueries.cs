@@ -6,8 +6,28 @@ using MediatR;
 
 namespace AggregatorPlatform.Application.Features.Customers.Queries;
 
+public record ListCustomersQuery : IRequest<Result<IReadOnlyList<CustomerDto>>>;
 public record GetCustomerByIdQuery(Guid CustomerId) : IRequest<Result<CustomerDto>>;
 public record GetCustomerSubscriptionsQuery(Guid CustomerId) : IRequest<Result<IReadOnlyList<SubscriptionDto>>>;
+
+public class ListCustomersQueryHandler : IRequestHandler<ListCustomersQuery, Result<IReadOnlyList<CustomerDto>>>
+{
+    private readonly ICustomerRepository _customers;
+    private readonly IMapper _mapper;
+
+    public ListCustomersQueryHandler(ICustomerRepository customers, IMapper mapper)
+    {
+        _customers = customers;
+        _mapper = mapper;
+    }
+
+    public async Task<Result<IReadOnlyList<CustomerDto>>> Handle(ListCustomersQuery request, CancellationToken cancellationToken)
+    {
+        var list = await _customers.GetAllAsync(cancellationToken);
+        var ordered = list.OrderByDescending(c => c.CreatedAt).ToList();
+        return Result<IReadOnlyList<CustomerDto>>.Success(_mapper.Map<IReadOnlyList<CustomerDto>>(ordered));
+    }
+}
 
 public class GetCustomerByIdQueryHandler : IRequestHandler<GetCustomerByIdQuery, Result<CustomerDto>>
 {

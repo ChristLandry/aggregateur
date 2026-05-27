@@ -23,20 +23,25 @@ public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<Ban
 
     public BankDebitCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
+        IPartnerEndpointRepository partnerEndpoints,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<BankDebitCommandHandler> logger, IBankApiClient bank)
-        : base(transactions, subscriptions, partners, uow, accounting, webhooks, mapper, logger)
+        : base(transactions, subscriptions, partners, partnerEndpoints, uow, accounting, webhooks, mapper, logger)
     {
         _bank = bank;
     }
 
     public async Task<Result<TransactionDto>> Handle(BankDebitCommand request, CancellationToken cancellationToken)
     {
+        // 1) Idempotence
         var idem = await CheckIdempotenceAsync(request.PartnerId, request.Request.PartnerTransactionRef, cancellationToken);
         if (idem is not null) return idem;
 
+        // 2) Pre-validation : partenaire actif + ApiKey + PartnerEndpoint(BankDebit) + schema lie
+        var preCheck = await PreValidatePartnerAsync(request.PartnerId, TransactionType.BankDebit, cancellationToken);
+        if (preCheck is not null) return preCheck;
+
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
-        if (partner is null) return Result<TransactionDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
         var (sub, err) = await ResolveSubscriptionAsync(request.Request, request.PartnerId, cancellationToken);
         if (err == "SUBSCRIPTION_INVALID")
@@ -49,7 +54,7 @@ public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<Ban
 
         try
         {
-            var resp = await _bank.DebitAsync(partner, new BankTransactionRequest(
+            var resp = await _bank.DebitAsync(partner!, new BankTransactionRequest(
                 tx.PartnerTransactionRef, request.Request.BankAccount!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
             await FinalizeAsync(tx, resp.ExternalRef,
@@ -79,9 +84,10 @@ public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<Ba
 
     public BankCreditCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
+        IPartnerEndpointRepository partnerEndpoints,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<BankCreditCommandHandler> logger, IBankApiClient bank)
-        : base(transactions, subscriptions, partners, uow, accounting, webhooks, mapper, logger)
+        : base(transactions, subscriptions, partners, partnerEndpoints, uow, accounting, webhooks, mapper, logger)
     {
         _bank = bank;
     }
@@ -91,8 +97,10 @@ public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<Ba
         var idem = await CheckIdempotenceAsync(request.PartnerId, request.Request.PartnerTransactionRef, cancellationToken);
         if (idem is not null) return idem;
 
+        var preCheck = await PreValidatePartnerAsync(request.PartnerId, TransactionType.BankCredit, cancellationToken);
+        if (preCheck is not null) return preCheck;
+
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
-        if (partner is null) return Result<TransactionDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
         var (sub, err) = await ResolveSubscriptionAsync(request.Request, request.PartnerId, cancellationToken);
         if (err == "SUBSCRIPTION_INVALID")
@@ -105,7 +113,7 @@ public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<Ba
 
         try
         {
-            var resp = await _bank.CreditAsync(partner, new BankTransactionRequest(
+            var resp = await _bank.CreditAsync(partner!, new BankTransactionRequest(
                 tx.PartnerTransactionRef, request.Request.BankAccount!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
             await FinalizeAsync(tx, resp.ExternalRef,

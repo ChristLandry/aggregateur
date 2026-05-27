@@ -200,7 +200,7 @@ POST  /api/v1/auth/login    { username, password, twoFactorCode? }
 POST  /api/v1/auth/refresh  { refreshToken } -> meme retour
 POST  /api/v1/auth/logout   { refreshToken }
 
-### Partners (header Authorization: Bearer; pas de X-Partner-Id)
+### Partners (header Authorization: Bearer; pas de X-Partner-ApiKey)
 POST   /api/v1/partners                       creation
 GET    /api/v1/partners                       liste
 GET    /api/v1/partners/:id                   detail
@@ -211,14 +211,14 @@ GET    /api/v1/partners/:id/account           compte miroir complet
 GET    /api/v1/partners/:id/balance           solde + devise
 PUT    /api/v1/partners/:id/balance           { balance, reason? }
 
-### Customers (header Authorization + X-Partner-Id)
+### Customers (header Authorization + X-Partner-ApiKey)
 POST   /api/v1/customers
 GET    /api/v1/customers/:id
 PUT    /api/v1/customers/:id                  PATCH partiel
 GET    /api/v1/customers/:id/subscriptions
 POST   /api/v1/customers/:id/subscriptions
 
-### Subscriptions (header Authorization + X-Partner-Id)
+### Subscriptions (header Authorization + X-Partner-ApiKey)
 POST   /api/v1/subscriptions                  PartnerId IMPLICITE (jamais dans le body)
 GET    /api/v1/subscriptions/:id
 GET    /api/v1/subscriptions?customerId=
@@ -233,6 +233,15 @@ POST   /api/v1/accounting/schemas/:id/lines
 DELETE /api/v1/accounting/schemas/:id/lines/:lineId
 GET    /api/v1/accounting/movements           ?fromDate&toDate&account&transactionId&page&pageSize
 GET    /api/v1/accounting/transactions/:id/movements
+
+### Transactions admin (header Authorization, role Admin/SuperAdmin/Finance — PAS de X-Partner-ApiKey)
+GET    /api/v1/financial/transactions             search paginee, tous filtres optionnels :
+                                                  fromDate, toDate, partnerId, status,
+                                                  bankAccount, phoneNumber,
+                                                  partnerTransactionRef, type,
+                                                  page (defaut 1), pageSize (defaut 50)
+GET    /api/v1/financial/transactions/:id         detail
+GET    /api/v1/financial/transactions/:id/movements   mouvements comptables, LineOrder asc
 
 ### Partner-Endpoints — liaison Partenaire <-> route financiere (+ schema comptable optionnel)
 (header Authorization, role Admin/SuperAdmin/Finance)
@@ -289,10 +298,14 @@ UserRole           : 0 SuperAdmin, 1 Admin, 2 Finance, 3 Partner, 4 ReadOnly
 2. Interceptor axios : sur 401, appeler /auth/refresh, retenter une fois,
    sinon rediriger vers /login.
 3. Selecteur de partenaire dans la topbar (Combobox alimente par
-   GET /partners). La valeur selectionnee est injectee comme header
-   X-Partner-Id sur TOUTES les requetes partner-scoped. Persistance dans
-   le store (zustand) + cookie.
-4. Pages reservees Admin/SuperAdmin/Finance : afficher 403 si role
+   GET /partners). La valeur stockee pour chaque partenaire est sa CLE API
+   EN CLAIR (issue de POST /partners ou POST /partners/:id/rotate-key, les
+   seuls endroits ou elle est retournee). C'est cette cle qui est injectee
+   comme header X-Partner-ApiKey sur les requetes partner-scoped
+   (/api/v1/subscriptions/*, /api/v1/financial/{bank,wallet}/*).
+4. Les routes /api/v1/financial/transactions* (search, detail, movements)
+   sont admin : JWT uniquement, PAS de X-Partner-ApiKey.
+5. Pages reservees Admin/SuperAdmin/Finance : afficher 403 si role
    insuffisant (decodage du JWT cote client).
 
 ## Arborescence demandee
@@ -353,6 +366,8 @@ hooks/
 ## Variables d'environnement
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
 NEXT_PUBLIC_DEFAULT_PARTNER_ID=11111111-1111-1111-1111-111111111111
+# La cle API en clair n'est jamais committee. L'admin la recupere via
+# POST /partners (creation) ou POST /partners/:id/rotate-key (rotation).
 
 ## Acceptance criteria
 1. Login fonctionnel avec rotation refresh transparente.

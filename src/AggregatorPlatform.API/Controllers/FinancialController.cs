@@ -63,8 +63,7 @@ public class FinancialController : BaseApiController
     public async Task<ActionResult<ApiResponse<TransactionDto>>> WalletCancel([FromBody] CancelTransactionRequest request, CancellationToken ct)
         => ToResponse(await Mediator.Send(new WalletCancelCommand(PartnerId, request), ct));
 
-    /// <summary>Get a transaction by id.</summary>
-    [HttpGet("transactions/{id:guid}")]
-    public async Task<ActionResult<ApiResponse<TransactionDto>>> GetTransaction(Guid id, CancellationToken ct)
-        => ToResponse(await Mediator.Send(new GetTransactionByIdQuery(id), ct));
+    // Note : les lectures de transactions (search, detail, movements) sont desormais
+    // exposees par TransactionsAdminController sous /api/v1/financial/transactions
+    // (JWT admin, pas de header X-Partner-ApiKey).
 }

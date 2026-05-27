@@ -35,8 +35,14 @@ public class BankDebitCommandHandlerTests
         accounting = new Mock<IAccountingEngine>();
         var uow = new Mock<IUnitOfWork>();
         var webhooks = new Mock<IWebhookService>();
-        return new BankDebitCommandHandler(txs.Object, subs.Object, partners.Object, uow.Object,
-            accounting.Object, webhooks.Object, BuildMapper(),
+        var partnerEndpoints = new Mock<IPartnerEndpointRepository>();
+        // Par defaut : partenaire eligible avec schema attache (pour ne pas bloquer les tests legacy).
+        partnerEndpoints
+            .Setup(p => p.GetByPartnerAndKeyAsync(It.IsAny<Guid>(), It.IsAny<AggregatorPlatform.Domain.Enums.FinancialEndpointKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid pid, AggregatorPlatform.Domain.Enums.FinancialEndpointKey k, CancellationToken _) =>
+                new PartnerEndpoint { PartnerId = pid, EndpointKey = k, SchemaId = Guid.NewGuid() });
+        return new BankDebitCommandHandler(txs.Object, subs.Object, partners.Object, partnerEndpoints.Object,
+            uow.Object, accounting.Object, webhooks.Object, BuildMapper(),
             NullLogger<BankDebitCommandHandler>.Instance, bank.Object);
     }
 
@@ -78,7 +84,7 @@ public class BankDebitCommandHandlerTests
         var handler = BuildHandler(out var txs, out var subs, out var partners, out _, out _);
         var partnerId = Guid.NewGuid();
         txs.Setup(x => x.GetByPartnerRefAsync(partnerId, "REF1", It.IsAny<CancellationToken>())).ReturnsAsync((Transaction?)null);
-        partners.Setup(x => x.GetByIdAsync(partnerId, It.IsAny<CancellationToken>())).ReturnsAsync(new Partner { PartnerId = partnerId, Status = PartnerStatus.Active });
+        partners.Setup(x => x.GetByIdAsync(partnerId, It.IsAny<CancellationToken>())).ReturnsAsync(new Partner { PartnerId = partnerId, Status = PartnerStatus.Active, ApiKey = "hashed-key" });
         subs.Setup(x => x.GetByIdAsync(It.IsAny<object>(), It.IsAny<CancellationToken>())).ReturnsAsync((Subscription?)null);
 
         var req = new TransactionRequest
@@ -101,7 +107,7 @@ public class BankDebitCommandHandlerTests
         var partnerId = Guid.NewGuid();
         var subscriptionId = Guid.NewGuid();
         txs.Setup(x => x.GetByPartnerRefAsync(partnerId, "REF2", It.IsAny<CancellationToken>())).ReturnsAsync((Transaction?)null);
-        partners.Setup(x => x.GetByIdAsync(partnerId, It.IsAny<CancellationToken>())).ReturnsAsync(new Partner { PartnerId = partnerId, Status = PartnerStatus.Active });
+        partners.Setup(x => x.GetByIdAsync(partnerId, It.IsAny<CancellationToken>())).ReturnsAsync(new Partner { PartnerId = partnerId, Status = PartnerStatus.Active, ApiKey = "hashed-key" });
         subs.Setup(x => x.GetByIdAsync(subscriptionId, It.IsAny<CancellationToken>())).ReturnsAsync(new Subscription
         {
             SubscriptionId = subscriptionId,

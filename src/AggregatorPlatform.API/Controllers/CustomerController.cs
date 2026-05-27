@@ -17,6 +17,11 @@ public class CustomerController : BaseApiController
 
     public CustomerController(ICurrentPartnerService currentPartner) => _currentPartner = currentPartner;
 
+    /// <summary>List all customers.</summary>
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<CustomerDto>>>> List(CancellationToken ct)
+        => ToResponse(await Mediator.Send(new ListCustomersQuery(), ct));
+
     /// <summary>Create a new customer.</summary>
     [HttpPost]
     public async Task<ActionResult<ApiResponse<Guid>>> Create([FromBody] CreateCustomerRequest request, CancellationToken ct)

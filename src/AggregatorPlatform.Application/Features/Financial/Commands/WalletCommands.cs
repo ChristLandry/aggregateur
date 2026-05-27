@@ -23,9 +23,10 @@ public class WalletDebitCommandHandler : FinancialBaseHandler, IRequestHandler<W
 
     public WalletDebitCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
+        IPartnerEndpointRepository partnerEndpoints,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<WalletDebitCommandHandler> logger, IWalletApiClient wallet)
-        : base(transactions, subscriptions, partners, uow, accounting, webhooks, mapper, logger)
+        : base(transactions, subscriptions, partners, partnerEndpoints, uow, accounting, webhooks, mapper, logger)
     {
         _wallet = wallet;
     }
@@ -35,8 +36,10 @@ public class WalletDebitCommandHandler : FinancialBaseHandler, IRequestHandler<W
         var idem = await CheckIdempotenceAsync(request.PartnerId, request.Request.PartnerTransactionRef, cancellationToken);
         if (idem is not null) return idem;
 
+        var preCheck = await PreValidatePartnerAsync(request.PartnerId, TransactionType.WalletDebit, cancellationToken);
+        if (preCheck is not null) return preCheck;
+
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
-        if (partner is null) return Result<TransactionDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
         var (sub, err) = await ResolveSubscriptionAsync(request.Request, request.PartnerId, cancellationToken);
         if (err == "SUBSCRIPTION_INVALID")
@@ -49,8 +52,8 @@ public class WalletDebitCommandHandler : FinancialBaseHandler, IRequestHandler<W
 
         try
         {
-            // Appel HTTP au partenaire wallet => le partenaire credite/debite le wallet du client.
-            var resp = await _wallet.DebitAsync(partner, new WalletTransactionRequest(
+            // Appel HTTP au partenaire wallet => debite/credite le wallet du client.
+            var resp = await _wallet.DebitAsync(partner!, new WalletTransactionRequest(
                 tx.PartnerTransactionRef, request.Request.PhoneNumber!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
             await FinalizeAsync(tx, resp.ExternalRef,
@@ -80,9 +83,10 @@ public class WalletCreditCommandHandler : FinancialBaseHandler, IRequestHandler<
 
     public WalletCreditCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
+        IPartnerEndpointRepository partnerEndpoints,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<WalletCreditCommandHandler> logger, IWalletApiClient wallet)
-        : base(transactions, subscriptions, partners, uow, accounting, webhooks, mapper, logger)
+        : base(transactions, subscriptions, partners, partnerEndpoints, uow, accounting, webhooks, mapper, logger)
     {
         _wallet = wallet;
     }
@@ -92,8 +96,10 @@ public class WalletCreditCommandHandler : FinancialBaseHandler, IRequestHandler<
         var idem = await CheckIdempotenceAsync(request.PartnerId, request.Request.PartnerTransactionRef, cancellationToken);
         if (idem is not null) return idem;
 
+        var preCheck = await PreValidatePartnerAsync(request.PartnerId, TransactionType.WalletCredit, cancellationToken);
+        if (preCheck is not null) return preCheck;
+
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
-        if (partner is null) return Result<TransactionDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
         var (sub, err) = await ResolveSubscriptionAsync(request.Request, request.PartnerId, cancellationToken);
         if (err == "SUBSCRIPTION_INVALID")
@@ -106,8 +112,8 @@ public class WalletCreditCommandHandler : FinancialBaseHandler, IRequestHandler<
 
         try
         {
-            // Appel HTTP au partenaire wallet => le partenaire credite le wallet du client.
-            var resp = await _wallet.CreditAsync(partner, new WalletTransactionRequest(
+            // Appel HTTP au partenaire wallet => credite le wallet du client.
+            var resp = await _wallet.CreditAsync(partner!, new WalletTransactionRequest(
                 tx.PartnerTransactionRef, request.Request.PhoneNumber!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
             await FinalizeAsync(tx, resp.ExternalRef,
@@ -141,9 +147,10 @@ public class WalletCancelCommandHandler : FinancialBaseHandler, IRequestHandler<
 
     public WalletCancelCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
+        IPartnerEndpointRepository partnerEndpoints,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<WalletCancelCommandHandler> logger, IWalletApiClient wallet)
-        : base(transactions, subscriptions, partners, uow, accounting, webhooks, mapper, logger)
+        : base(transactions, subscriptions, partners, partnerEndpoints, uow, accounting, webhooks, mapper, logger)
     {
         _wallet = wallet;
     }
@@ -153,8 +160,12 @@ public class WalletCancelCommandHandler : FinancialBaseHandler, IRequestHandler<
         var idem = await CheckIdempotenceAsync(request.PartnerId, request.Request.PartnerTransactionRef, cancellationToken);
         if (idem is not null) return idem;
 
+        // WalletCancel : pas de check PartnerEndpoint (derive de la transaction d'origine),
+        // mais on garde la verification d'activite + ApiKey du partenaire.
+        var preCheck = await PreValidatePartnerAsync(request.PartnerId, TransactionType.WalletCancel, cancellationToken);
+        if (preCheck is not null) return preCheck;
+
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
-        if (partner is null) return Result<TransactionDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
         var original = (await Transactions.FindAsync(t => t.ExternalRef == request.Request.OriginalExternalRef && t.PartnerId == request.PartnerId, cancellationToken))
             .FirstOrDefault();
@@ -179,7 +190,7 @@ public class WalletCancelCommandHandler : FinancialBaseHandler, IRequestHandler<
 
         try
         {
-            var resp = await _wallet.CancelAsync(partner, request.Request.OriginalExternalRef, cancellationToken);
+            var resp = await _wallet.CancelAsync(partner!, request.Request.OriginalExternalRef, cancellationToken);
             var success = resp.Status.Equals("SUCCESS", StringComparison.OrdinalIgnoreCase);
             if (success)
             {

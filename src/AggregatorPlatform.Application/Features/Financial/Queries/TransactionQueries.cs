@@ -12,6 +12,9 @@ public record GetTransactionByIdQuery(Guid TransactionId) : IRequest<Result<Tran
 
 public record GetTransactionsQuery(
     Guid? PartnerId,
+    string? BankAccount,
+    string? PhoneNumber,
+    string? PartnerTransactionRef,
     TransactionStatus? Status,
     TransactionType? Type,
     DateTime? FromDate,
@@ -53,6 +56,15 @@ public class GetTransactionsQueryHandler : IRequestHandler<GetTransactionsQuery,
     {
         var query = _txs.Query();
         if (request.PartnerId.HasValue) query = query.Where(x => x.PartnerId == request.PartnerId);
+        if (!string.IsNullOrWhiteSpace(request.BankAccount))
+            query = query.Where(x => x.BankAccount == request.BankAccount.Trim());
+        if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
+            query = query.Where(x => x.PhoneNumber == request.PhoneNumber.Trim());
+        if (!string.IsNullOrWhiteSpace(request.PartnerTransactionRef))
+        {
+            var term = request.PartnerTransactionRef.Trim();
+            query = query.Where(x => x.PartnerTransactionRef.Contains(term));
+        }
         if (request.Status.HasValue) query = query.Where(x => x.Status == request.Status);
         if (request.Type.HasValue) query = query.Where(x => x.TransactionType == request.Type);
         if (request.FromDate.HasValue) query = query.Where(x => x.InitiatedAt >= request.FromDate);

@@ -6,6 +6,12 @@ public interface IPartnerRepository : IRepository<Partner>
 {
     Task<Partner?> GetByCodeAsync(string code, CancellationToken cancellationToken = default);
     Task<Partner?> GetWithAccountAsync(Guid partnerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Recupere un partenaire actif a partir du SHA-256 de sa cle API en clair
+    /// (Partner.ApiKey est stocke deja hashe).
+    /// </summary>
+    Task<Partner?> GetByApiKeyHashAsync(string apiKeyHash, CancellationToken cancellationToken = default);
 }
 
 public interface ICustomerRepository : IRepository<Customer>

@@ -82,7 +82,7 @@ function ep({
   const headers = [{ key: 'Accept', value: 'application/json' }];
   if (body) headers.push({ key: 'Content-Type', value: 'application/json' });
   if (skipPartner) {
-    headers.push({ key: 'X-Partner-Id', value: '', disabled: true });
+    headers.push({ key: 'X-Partner-ApiKey', value: '', disabled: true });
   }
 
   const item = {
@@ -511,11 +511,39 @@ if (json.success && json.data) {
     },
     description: 'Annule une transaction wallet par son externalRef.',
   }),
+  // --- Admin/Finance : recherche & consultation (pas de X-Partner-ApiKey) ---
   ep({
-    name: 'Get transaction by id',
+    name: 'Search transactions (admin)',
+    method: 'GET',
+    path: '/api/v1/financial/transactions',
+    skipPartner: true,
+    query: [
+      { key: 'fromDate',              value: '', description: 'ISO-8601, borne basse sur InitiatedAt' },
+      { key: 'toDate',                value: '', description: 'ISO-8601, borne haute' },
+      { key: 'partnerId',             value: '', description: 'Optionnel' },
+      { key: 'status',                value: '', description: '0 Pending, 1 Success, 2 Failed, 3 Cancelled, 4 Reversed' },
+      { key: 'bankAccount',           value: '', description: 'Numero de compte exact' },
+      { key: 'phoneNumber',           value: '', description: 'Numero de telephone exact' },
+      { key: 'partnerTransactionRef', value: '', description: 'Recherche partielle' },
+      { key: 'type',                  value: '', description: 'TransactionType 0..4' },
+      { key: 'page',                  value: '1' },
+      { key: 'pageSize',              value: '50' },
+    ],
+    description: 'Recherche paginee, tous filtres optionnels. Role Admin/SuperAdmin/Finance.',
+  }),
+  ep({
+    name: 'Get transaction by id (admin)',
     method: 'GET',
     path: '/api/v1/financial/transactions/:id',
-    description: 'Variable de chemin: :id (utilise {{transactionId}}).',
+    skipPartner: true,
+    description: 'Detail transaction. Variable de chemin :id (utilise {{transactionId}}).',
+  }),
+  ep({
+    name: 'Get movements of a transaction (admin)',
+    method: 'GET',
+    path: '/api/v1/financial/transactions/:id/movements',
+    skipPartner: true,
+    description: 'Mouvements comptables generes par la transaction, ordre LineOrder croissant.',
   }),
 ];
 
@@ -868,13 +896,13 @@ const collection = {
       script: {
         type: 'text/javascript',
         exec: [
-          "// Ajoute automatiquement X-Partner-Id sur toutes les requetes sauf indication contraire.",
+          "// Ajoute automatiquement X-Partner-ApiKey sur toutes les requetes sauf indication contraire.",
           "// Pour les endpoints qui ne veulent pas du header, il est marque 'disabled:true' dans la requete.",
           "const url = pm.request.url.getPath();",
-          "const partnerId = pm.environment.get('partnerId');",
-          "const hasHeader = pm.request.headers.has('X-Partner-Id');",
+          "const partnerApiKey = pm.environment.get('partnerApiKey');",
+          "const hasHeader = pm.request.headers.has('X-Partner-ApiKey');",
           "if (partnerId && !hasHeader) {",
-          "  pm.request.headers.add({ key: 'X-Partner-Id', value: partnerId });",
+          "  pm.request.headers.add({ key: 'X-Partner-ApiKey', value: partnerApiKey });",
           "}",
         ],
       },
@@ -911,6 +939,7 @@ const environment = {
     { key: 'refreshToken',    value: '',                                                   enabled: true, type: 'secret'  },
 
     { key: 'partnerId',       value: '11111111-1111-1111-1111-111111111111',               enabled: true, type: 'default' },
+    { key: 'partnerApiKey',   value: 'REPLACE_WITH_CLEAR_API_KEY',                         enabled: true, type: 'secret'  },
     { key: 'partnerCode',     value: 'BANK_DEMO',                                          enabled: true, type: 'default' },
     { key: 'partnerBankAccount', value: '010101010101',                                    enabled: true, type: 'default' },
 

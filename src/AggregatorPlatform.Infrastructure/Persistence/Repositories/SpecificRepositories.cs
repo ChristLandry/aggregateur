@@ -14,6 +14,9 @@ public class PartnerRepository : Repository<Partner>, IPartnerRepository
 
     public Task<Partner?> GetWithAccountAsync(Guid partnerId, CancellationToken cancellationToken = default)
         => Set.Include(p => p.PartnerAccount).FirstOrDefaultAsync(p => p.PartnerId == partnerId, cancellationToken);
+
+    public Task<Partner?> GetByApiKeyHashAsync(string apiKeyHash, CancellationToken cancellationToken = default)
+        => Set.Include(p => p.PartnerAccount).FirstOrDefaultAsync(p => p.ApiKey == apiKeyHash, cancellationToken);
 }
 
 public class CustomerRepository : Repository<Customer>, ICustomerRepository
