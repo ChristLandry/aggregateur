@@ -2,6 +2,7 @@ using AggregatorPlatform.Application.Common;
 using AggregatorPlatform.Application.DTOs;
 using AggregatorPlatform.Application.Features.Partners.Commands;
 using AggregatorPlatform.Application.Features.Partners.Queries;
+using AggregatorPlatform.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,6 +16,16 @@ public class PartnerController : BaseApiController
     [HttpPost]
     public async Task<ActionResult<ApiResponse<CreatePartnerResponse>>> Create([FromBody] CreatePartnerRequest request, CancellationToken ct)
         => ToResponse(await Mediator.Send(new CreatePartnerCommand(request), ct));
+
+    /// <summary>
+    /// Liste les codes partenaire autorises pour la creation (enum AllowedPartnerCode).
+    /// Utile cote front pour alimenter la combobox PartnerCode et filtrer les codes deja crees.
+    /// </summary>
+    [HttpGet("allowed-codes")]
+    [AllowAnonymous]
+    public ActionResult<ApiResponse<IReadOnlyList<string>>> GetAllowedCodes()
+        => ToResponse(Application.Common.Result<IReadOnlyList<string>>.Success(
+            Enum.GetNames<AllowedPartnerCode>()));
 
     /// <summary>List partners.</summary>
     [HttpGet]

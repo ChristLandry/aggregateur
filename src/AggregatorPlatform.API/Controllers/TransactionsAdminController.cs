@@ -29,6 +29,9 @@ public class TransactionsAdminController : BaseApiController
     /// <param name="phoneNumber">Filtre exact sur le numero de telephone.</param>
     /// <param name="partnerTransactionRef">Recherche partielle sur la reference partenaire (Contains).</param>
     /// <param name="type">Filtre par TransactionType (0..4).</param>
+    /// <param name="page">Numero de page (defaut 1).</param>
+    /// <param name="pageSize">Taille de page (defaut 50).</param>
+    /// <param name="ct">Token d'annulation.</param>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PaginatedResult<TransactionDto>>>> Search(
         [FromQuery] DateTime? fromDate,

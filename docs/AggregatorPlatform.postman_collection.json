@@ -221,6 +221,39 @@
       "description": "CRUD partenaires + rotation API key + compte miroir.",
       "item": [
         {
+          "name": "List allowed partner codes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Partner-ApiKey",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/allowed-codes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "allowed-codes"
+              ]
+            },
+            "description": "Renvoie les valeurs de l'enum AllowedPartnerCode (codes acceptes par POST /partners).",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
           "name": "Create partner",
           "request": {
             "method": "POST",
@@ -252,7 +285,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"partnerCode\": \"PARTNER_NEW\",\n  \"name\": \"Banque nouvelle\",\n  \"baseUrl\": \"http://localhost:5080\",\n  \"currency\": \"XOF\",\n  \"partnerBankAccount\": \"010101010101\",\n  \"accountCode\": \"P-NEW\",\n  \"webhookUrl\": \"https://webhook.example.com/aggregator\",\n  \"rateLimitPerMin\": 100,\n  \"ipWhitelist\": null,\n  \"requireHmac\": false\n}",
+              "raw": "{\n  \"partnerCode\": \"WAVE\",\n  \"name\": \"Banque nouvelle\",\n  \"baseUrl\": \"http://localhost:5080\",\n  \"currency\": \"XOF\",\n  \"partnerBankAccount\": \"010101010101\",\n  \"accountCode\": \"P-NEW\",\n  \"webhookUrl\": \"https://webhook.example.com/aggregator\",\n  \"rateLimitPerMin\": 100,\n  \"ipWhitelist\": null,\n  \"requireHmac\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"

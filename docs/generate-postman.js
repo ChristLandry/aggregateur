@@ -168,12 +168,20 @@ if (json.success && json.data) {
 // ---------------------------------------------------------------------------
 const partnerItems = [
   ep({
+    name: 'List allowed partner codes',
+    method: 'GET',
+    path: '/api/v1/partners/allowed-codes',
+    skipAuth: true,
+    skipPartner: true,
+    description: 'Renvoie les valeurs de l\'enum AllowedPartnerCode (codes acceptes par POST /partners).',
+  }),
+  ep({
     name: 'Create partner',
     method: 'POST',
     path: '/api/v1/partners',
     skipPartner: true,
     body: {
-      partnerCode: 'PARTNER_NEW',
+      partnerCode: 'WAVE',
       name: 'Banque nouvelle',
       baseUrl: 'http://localhost:5080',
       currency: 'XOF',

@@ -16,6 +16,9 @@ public class CreatePartnerValidator : AbstractValidator<CreatePartnerCommand>
 {
     public CreatePartnerValidator()
     {
+        // Format (NotEmpty + MaxLength) ici ; la verification metier d'appartenance
+        // a l'enum AllowedPartnerCode est faite dans le handler pour produire un
+        // code d'erreur top-level explicite (PARTNER_CODE_NOT_ALLOWED).
         RuleFor(x => x.Request.PartnerCode).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Request.BaseUrl).NotEmpty().Must(url => url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("http://", StringComparison.OrdinalIgnoreCase));
@@ -47,6 +50,15 @@ public class CreatePartnerCommandHandler : IRequestHandler<CreatePartnerCommand,
 
     public async Task<Result<CreatePartnerResponse>> Handle(CreatePartnerCommand request, CancellationToken cancellationToken)
     {
+        // 1. Defense en profondeur : meme check que le validator (cas ou il serait bypass).
+        if (!Enum.TryParse<AllowedPartnerCode>(request.Request.PartnerCode, ignoreCase: false, out _))
+        {
+            return Result<CreatePartnerResponse>.Failure("PARTNER_CODE_NOT_ALLOWED",
+                $"PartnerCode '{request.Request.PartnerCode}' is not in the allowed list. " +
+                $"Allowed values: {string.Join(", ", Enum.GetNames<AllowedPartnerCode>())}.");
+        }
+
+        // 2. Unicite du code.
         var existing = await _partners.GetByCodeAsync(request.Request.PartnerCode, cancellationToken);
         if (existing is not null)
             return Result<CreatePartnerResponse>.Failure("PARTNER_CODE_EXISTS", "Partner code already exists.");

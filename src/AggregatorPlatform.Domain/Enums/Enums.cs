@@ -108,6 +108,26 @@ public enum UserRole
 }
 
 /// <summary>
+/// Liste des codes partenaire autorises pour la creation.
+/// Le PartnerCode passe a POST /api/v1/partners doit obligatoirement correspondre
+/// (sensibilite a la casse) au nom d'une de ces valeurs.
+/// Pour ajouter un nouveau partenaire eligible : ajouter la valeur ici puis
+/// reconstruire. Aucune migration n'est requise (stocke comme string en BD).
+/// </summary>
+public enum AllowedPartnerCode
+{
+    BANK_DEMO    = 0,
+    WALLET_DEMO  = 1,
+    ORANGE_MONEY = 2,
+    WAVE         = 3,
+    MTN_MOMO     = 4,
+    MOOV_MONEY   = 5,
+    FREE_MONEY   = 6,
+    WIZALL       = 7,
+    E_MONEY      = 8,
+}
+
+/// <summary>
 /// Identifiants des endpoints financiers configurables par partenaire.
 /// Mapping vers TransactionType :
 ///   BankDebit    -> TransactionType.BankDebit    (0)

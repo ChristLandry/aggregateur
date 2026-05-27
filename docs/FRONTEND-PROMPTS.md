@@ -201,7 +201,8 @@ POST  /api/v1/auth/refresh  { refreshToken } -> meme retour
 POST  /api/v1/auth/logout   { refreshToken }
 
 ### Partners (header Authorization: Bearer; pas de X-Partner-ApiKey)
-POST   /api/v1/partners                       creation
+GET    /api/v1/partners/allowed-codes         enum AllowedPartnerCode (public, anonymous)
+POST   /api/v1/partners                       creation -- partnerCode DOIT etre dans l'enum
 GET    /api/v1/partners                       liste
 GET    /api/v1/partners/:id                   detail
 PUT    /api/v1/partners/:id                   PATCH partiel
@@ -278,6 +279,10 @@ Toutes les reponses (sauf exports binaires) suivent la forme :
 { success: boolean, data: T, errorCode?: string, errorMessage?: string, timestamp: string }
 
 ## Enums
+AllowedPartnerCode   : BANK_DEMO, WALLET_DEMO, ORANGE_MONEY, WAVE, MTN_MOMO,
+                       MOOV_MONEY, FREE_MONEY, WIZALL, E_MONEY
+                       (le partnerCode envoye a POST /partners doit etre EXACTEMENT
+                        l'une de ces valeurs, sensible a la casse)
 FinancialEndpointKey : 0 BankDebit, 1 BankCredit, 2 WalletDebit, 3 WalletCredit
 TransactionType    : 0 BankDebit, 1 BankCredit, 2 WalletDebit, 3 WalletCredit, 4 WalletCancel
 TransactionSide    : 0 Debit, 1 Credit
@@ -385,7 +390,16 @@ NEXT_PUBLIC_DEFAULT_PARTNER_ID=11111111-1111-1111-1111-111111111111
    qui telecharge le binaire.
 9. Selecteur de partenaire actif persistant entre sessions.
 10. NE PAS implementer la zone Financial (debit/credit/cancel).
-11. Page "Partner-Endpoints" sous forme de MATRICE :
+11. Formulaire de creation Partner :
+    - Le champ `partnerCode` est un Select alimente par GET /partners/allowed-codes.
+    - Filtrer les options en excluant les codes deja crees (cross-check
+      avec GET /partners).
+    - Bouton "Rafraichir la liste" pour recharger les allowed-codes.
+    - Gestion des erreurs API :
+        * PARTNER_CODE_NOT_ALLOWED -> toast "Code partenaire non autorise".
+        * PARTNER_CODE_EXISTS      -> toast "Ce partenaire existe deja".
+
+12. Page "Partner-Endpoints" sous forme de MATRICE :
     - Colonnes : BankDebit | BankCredit | WalletDebit | WalletCredit
     - Lignes   : un partenaire par ligne
     - Cellule  :
