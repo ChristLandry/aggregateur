@@ -280,9 +280,11 @@ Toutes les reponses (sauf exports binaires) suivent la forme :
 
 ## Enums
 AllowedPartnerCode   : BANK_DEMO, WALLET_DEMO, ORANGE_MONEY, WAVE, MTN_MOMO,
-                       MOOV_MONEY, FREE_MONEY, WIZALL, E_MONEY
+                       MOOV_MONEY, FREE_MONEY, WIZALL, E_MONEY, WEB
                        (le partnerCode envoye a POST /partners doit etre EXACTEMENT
-                        l'une de ces valeurs, sensible a la casse)
+                        l'une de ces valeurs, sensible a la casse).
+                       WEB est reserve a l'app frontoffice : auto-seede au demarrage,
+                       caracteristiques speciales -- voir section "Partenaire WEB".
 FinancialEndpointKey : 0 BankDebit, 1 BankCredit, 2 WalletDebit, 3 WalletCredit
 TransactionType    : 0 BankDebit, 1 BankCredit, 2 WalletDebit, 3 WalletCredit, 4 WalletCancel
 TransactionSide    : 0 Debit, 1 Credit
@@ -371,8 +373,25 @@ hooks/
 ## Variables d'environnement
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
 NEXT_PUBLIC_DEFAULT_PARTNER_ID=11111111-1111-1111-1111-111111111111
-# La cle API en clair n'est jamais committee. L'admin la recupere via
-# POST /partners (creation) ou POST /partners/:id/rotate-key (rotation).
+NEXT_PUBLIC_WEB_PARTNER_APIKEY=dev-web-partner-apikey-CHANGE_ME
+# La cle API en clair des autres partenaires n'est jamais committee : l'admin
+# la recupere via POST /partners (creation) ou POST /partners/:id/rotate-key.
+# Pour le partenaire WEB, la cle est lue cote serveur dans Web:PartnerApiKey
+# et exposee cote front via NEXT_PUBLIC_WEB_PARTNER_APIKEY (memes valeurs).
+
+## Partenaire WEB (technique, interne)
+Le partenaire de code "WEB" est auto-seede au demarrage (Web:PartnerApiKey).
+Regles cote API :
+- IsWebPartner=true : exclu de GET /api/v1/partners ; toujours accessible via
+  GET /api/v1/partners/:id pour un admin.
+- Interdit sur /api/v1/financial/{bank|wallet}/*  -> 403 WEB_PARTNER_FORBIDDEN.
+- Autorise sur /subscriptions, /customers et autres routes partner-scoped.
+- Autorise sur /api/v1/financial/transactions* (admin, JWT only).
+
+Cote front : le client web utilise NEXT_PUBLIC_WEB_PARTNER_APIKEY comme valeur
+par defaut du header X-Partner-ApiKey, sans afficher de selecteur de partenaire
+pour l'utilisateur final. Pour les operations financieres reelles, l'admin
+passe par un VRAI partenaire (cle issue de /partners/:id/rotate-key).
 
 ## Acceptance criteria
 1. Login fonctionnel avec rotation refresh transparente.

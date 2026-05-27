@@ -20,6 +20,8 @@ public class PartnerConfiguration : IEntityTypeConfiguration<Partner>
         b.Property(x => x.WebhookUrl).HasMaxLength(500);
         b.Property(x => x.IpWhitelist).HasMaxLength(1000);
         b.Property(x => x.Status).HasConversion<int>();
+        b.Property(x => x.IsWebPartner).HasDefaultValue(false);
+        b.HasIndex(x => x.IsWebPartner).HasDatabaseName("IX_Partners_IsWebPartner");
         b.HasQueryFilter(x => !x.IsDeleted);
 
         b.HasOne(x => x.PartnerAccount)

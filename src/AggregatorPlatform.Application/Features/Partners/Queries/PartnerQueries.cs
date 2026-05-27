@@ -45,8 +45,12 @@ public class GetAllPartnersQueryHandler : IRequestHandler<GetAllPartnersQuery, R
 
     public async Task<Result<IReadOnlyList<PartnerDto>>> Handle(GetAllPartnersQuery request, CancellationToken cancellationToken)
     {
+        // Les partenaires techniques (IsWebPartner = true) ne sont jamais exposes
+        // dans la liste publique. Ils restent accessibles via GET /:id si l'admin
+        // connait leur identifiant.
         var list = await _partners.GetAllAsync(cancellationToken);
-        return Result<IReadOnlyList<PartnerDto>>.Success(_mapper.Map<IReadOnlyList<PartnerDto>>(list));
+        var filtered = list.Where(p => !p.IsWebPartner).ToList();
+        return Result<IReadOnlyList<PartnerDto>>.Success(_mapper.Map<IReadOnlyList<PartnerDto>>(filtered));
     }
 }
 

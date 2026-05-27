@@ -105,6 +105,17 @@ public class PartnerAuthMiddleware
             return;
         }
 
+        // Un partenaire WEB ne peut pas appeler les routes financieres operationnelles
+        // (debit / credit / cancel / balance / kyc sous /api/v1/financial/{bank|wallet}/*).
+        // Les routes admin /api/v1/financial/transactions/* sont deja exemptees plus haut.
+        if (partner.IsWebPartner &&
+            path.StartsWith("/api/v1/financial/", StringComparison.OrdinalIgnoreCase))
+        {
+            await WriteError(context, 403, "WEB_PARTNER_FORBIDDEN",
+                "The WEB partner cannot access financial endpoints.");
+            return;
+        }
+
         if (partner.RequireHmac)
         {
             if (!await ValidateHmacAsync(context, partner, encryption, apiKey))

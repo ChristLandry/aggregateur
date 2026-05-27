@@ -18,6 +18,14 @@ public class Partner : AuditableEntity
     public string? IpWhitelist { get; set; }
     public bool RequireHmac { get; set; }
 
+    /// <summary>
+    /// True : partenaire reserve a l'application web (frontoffice). Caracteristiques :
+    /// - exclu de la liste publique GET /api/v1/partners ;
+    /// - interdit d'appeler les routes financieres /api/v1/financial/{bank|wallet}/* ;
+    /// - peut continuer a consommer les routes admin (transactions/movements) si role suffisant.
+    /// </summary>
+    public bool IsWebPartner { get; set; }
+
     public PartnerAccount? PartnerAccount { get; set; }
     public ICollection<AccountingSchema> AccountingSchemas { get; set; } = new List<AccountingSchema>();
     public ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();

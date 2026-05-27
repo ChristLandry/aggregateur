@@ -948,6 +948,7 @@ const environment = {
 
     { key: 'partnerId',       value: '11111111-1111-1111-1111-111111111111',               enabled: true, type: 'default' },
     { key: 'partnerApiKey',   value: 'REPLACE_WITH_CLEAR_API_KEY',                         enabled: true, type: 'secret'  },
+    { key: 'webPartnerApiKey', value: 'dev-web-partner-apikey-CHANGE_ME',                  enabled: true, type: 'secret'  },
     { key: 'partnerCode',     value: 'BANK_DEMO',                                          enabled: true, type: 'default' },
     { key: 'partnerBankAccount', value: '010101010101',                                    enabled: true, type: 'default' },
 

@@ -125,6 +125,14 @@ public enum AllowedPartnerCode
     FREE_MONEY   = 6,
     WIZALL       = 7,
     E_MONEY      = 8,
+
+    /// <summary>
+    /// Partenaire technique reserve a l'application web.
+    /// Cree automatiquement au demarrage avec Partner.IsWebPartner = true.
+    /// Restrictions : exclu de la liste publique GET /partners et
+    /// interdit sur les routes /api/v1/financial/{bank|wallet}/*.
+    /// </summary>
+    WEB          = 9,
 }
 
 /// <summary>

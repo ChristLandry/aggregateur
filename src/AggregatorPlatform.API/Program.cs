@@ -116,14 +116,25 @@ if (app.Environment.IsDevelopment() || Environment.GetEnvironmentVariable("AUTO_
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AggregatorDbContext>();
+    var log = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     try
     {
         db.Database.Migrate();
     }
     catch (Exception ex)
     {
-        var log = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
         log.LogError(ex, "Database migration failed at startup.");
+    }
+
+    // Auto-seed du partenaire WEB (technique, reserve a l'app frontoffice).
+    try
+    {
+        await AggregatorPlatform.API.Services.WebPartnerSeeder
+            .EnsureWebPartnerAsync(scope.ServiceProvider, log);
+    }
+    catch (Exception ex)
+    {
+        log.LogError(ex, "Web partner seeding failed at startup.");
     }
 }
 
