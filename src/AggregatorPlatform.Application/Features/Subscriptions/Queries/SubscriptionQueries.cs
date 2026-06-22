@@ -60,11 +60,16 @@ public class GetSubscriptionsByPartnerWithFilterQueryHandler : IRequestHandler<G
         if (request.CustomerId.HasValue)
             query = query.Where(s => s.CustomerId == request.CustomerId.Value);
 
+        // PhoneNumber et BankAccountNumber sont chiffres AES-256 (deterministe)
+        // au repos. Seule l'EGALITE EXACTE est traduisible : un LIKE %x% s'appliquerait
+        // au ciphertext et serait inutile. On force donc une comparaison stricte ;
+        // le converter EF se charge de chiffrer la valeur de recherche pour matcher
+        // le ciphertext stocke.
         if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
-            query = query.Where(s => s.PhoneNumber.Contains(request.PhoneNumber));
+            query = query.Where(s => s.PhoneNumber == request.PhoneNumber);
 
         if (!string.IsNullOrWhiteSpace(request.BankAccountNumber))
-            query = query.Where(s => s.BankAccountNumber.Contains(request.BankAccountNumber));
+            query = query.Where(s => s.BankAccountNumber == request.BankAccountNumber);
 
         if (!string.IsNullOrWhiteSpace(request.PhoneOperator))
             query = query.Where(s => s.PhoneOperator == request.PhoneOperator);

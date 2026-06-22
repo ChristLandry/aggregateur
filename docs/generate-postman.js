@@ -332,7 +332,6 @@ if (json.success && json.data) {
     path: '/api/v1/customers/:id/subscriptions',
     body: {
       bankAccountNumber: 'SN012-1111-2222-3333',
-      bankCode: '{{createdPartnerCode}}',
       phoneNumber: '+221770001122',
       phoneOperator: 'Orange',
       expiresAt: null,
@@ -357,7 +356,6 @@ const subscriptionItems = [
     body: {
       customerId: '{{customerId}}',
       bankAccountNumber: 'SN012-9999-8888-7777',
-      bankCode: 'BANK_DEMO',
       phoneNumber: '+221770003344',
       phoneOperator: 'Wave',
       expiresAt: null,

@@ -65,15 +65,25 @@ public static class WebPartnerSeeder
         }
         else
         {
-            // Re-synchronise les invariants (flag + hash + statut).
+            // PERSISTENCE DES CLES API APRES REDEMARRAGE :
+            // On NE TOUCHE PLUS Partner.ApiKey ici. Cela permet de conserver
+            // les rotations effectuees via POST /partners/:id/rotate-key
+            // (ou toute autre modification manuelle). Idem pour les autres
+            // partenaires : leur ApiKey est stocke en BD une fois pour toutes.
+            //
+            // On resynchronise uniquement les invariants techniques (flag +
+            // statut Active) pour garantir que le partenaire WEB reste utilisable.
             var changed = false;
             if (!existing.IsWebPartner) { existing.IsWebPartner = true; changed = true; }
             if (existing.Status != PartnerStatus.Active) { existing.Status = PartnerStatus.Active; changed = true; }
-            if (existing.ApiKey != apiKeyHash) { existing.ApiKey = apiKeyHash; changed = true; }
             if (changed)
             {
                 await db.SaveChangesAsync(ct);
                 logger.LogInformation("Partenaire WEB resynchronise (PartnerId={Id}).", existing.PartnerId);
+            }
+            else
+            {
+                logger.LogInformation("Partenaire WEB deja present, ApiKey preserve (PartnerId={Id}).", existing.PartnerId);
             }
         }
     }
