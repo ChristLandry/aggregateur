@@ -32,7 +32,6 @@ public class SubscriptionConfiguration : IEntityTypeConfiguration<Subscription>
         b.Property(x => x.BankAccountNumber)
             .IsRequired().HasMaxLength(500)
             .HasConversion(EncryptionValueConverter.ForString());
-        b.Property(x => x.BankCode).IsRequired().HasMaxLength(20);
         b.Property(x => x.PhoneNumber).IsRequired().HasMaxLength(500)
             .HasConversion(EncryptionValueConverter.ForString());
         b.Property(x => x.PhoneOperator).IsRequired().HasMaxLength(50);

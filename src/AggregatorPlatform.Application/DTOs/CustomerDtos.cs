@@ -37,14 +37,12 @@ public record SubscriptionDto(
     Guid PartnerId,
     string PhoneNumber,
     string PhoneOperator,
-    string BankCode,
     SubscriptionStatus Status,
     DateTime SubscribedAt,
     DateTime? ExpiresAt);
 
 public record CreateSubscriptionRequest(
     string BankAccountNumber,
-    string BankCode,
     string PhoneNumber,
     string PhoneOperator,
     DateTime? ExpiresAt);
@@ -57,7 +55,6 @@ public record CreateSubscriptionRequest(
 public record CreateSubscriptionDirectRequest(
     Guid CustomerId,
     string BankAccountNumber,
-    string BankCode,
     string PhoneNumber,
     string PhoneOperator,
     DateTime? ExpiresAt);

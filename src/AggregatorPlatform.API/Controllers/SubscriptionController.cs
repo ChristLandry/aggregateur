@@ -4,6 +4,7 @@ using AggregatorPlatform.Application.DTOs;
 using AggregatorPlatform.Application.Features.Subscriptions.Commands;
 using AggregatorPlatform.Application.Features.Subscriptions.Queries;
 using AggregatorPlatform.Application.Interfaces;
+using AggregatorPlatform.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AggregatorPlatform.API.Controllers;
@@ -28,7 +29,6 @@ public class SubscriptionController : BaseApiController
 
         var subRequest = new CreateSubscriptionRequest(
             request.BankAccountNumber,
-            request.BankCode,
             request.PhoneNumber,
             request.PhoneOperator,
             request.ExpiresAt);
@@ -45,10 +45,30 @@ public class SubscriptionController : BaseApiController
     /// <summary>Liste les souscriptions du partenaire courant (avec filtre optionnel par client).</summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<SubscriptionDto>>>> GetForPartner(
-        [FromQuery] Guid? customerId, CancellationToken ct)
+        [FromQuery] Guid? partnerId,
+        [FromQuery] DateTime? subscribedAtDebut,
+        [FromQuery] DateTime? subscribedAtFin,
+        [FromQuery] string? phoneNumber,
+        [FromQuery] string? bankAccountNumber,
+        [FromQuery] Guid? customerId,
+        [FromQuery] string? phoneOperator,
+        [FromQuery] SubscriptionStatus? status,
+        [FromQuery] int? take,
+        CancellationToken ct)
     {
-        var partnerId = _currentPartner.PartnerId!.Value;
-        return ToResponse(await Mediator.Send(new GetSubscriptionsByPartnerQuery(partnerId, customerId), ct));
+        var resolvedPartnerId = partnerId ?? _currentPartner.PartnerId!.Value;
+        var q = new GetSubscriptionsByPartnerWithFilterQuery(
+            resolvedPartnerId,
+            subscribedAtDebut,
+            subscribedAtFin,
+            phoneNumber,
+            bankAccountNumber,
+            customerId,
+            phoneOperator,
+            status ?? SubscriptionStatus.Active,
+            take ?? 5000);
+
+        return ToResponse(await Mediator.Send(q, ct));
     }
 
     /// <summary>Change le statut d'une souscription.</summary>

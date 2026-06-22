@@ -69,24 +69,24 @@ END
 -- =================== SUBSCRIPTIONS ===================
 IF NOT EXISTS (SELECT 1 FROM Subscriptions WHERE SubscriptionId = '11111111-aaaa-aaaa-aaaa-111111111111')
 BEGIN
-    INSERT INTO Subscriptions (SubscriptionId, CustomerId, PartnerId, BankAccountNumber, BankCode,
+    INSERT INTO Subscriptions (SubscriptionId, CustomerId, PartnerId, BankAccountNumber,
                                PhoneNumber, PhoneOperator, Status, SubscribedAt, CreatedAt, IsDeleted)
     VALUES ('11111111-aaaa-aaaa-aaaa-111111111111',
             'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
             '11111111-1111-1111-1111-111111111111',
-            'SN012-0001-2345-6789', 'BANK_DEMO',
+            'SN012-0001-2345-6789',
             '+221771112233', 'Orange',
             1, GETUTCDATE(), GETUTCDATE(), 0);
 END
 
 IF NOT EXISTS (SELECT 1 FROM Subscriptions WHERE SubscriptionId = '22222222-bbbb-bbbb-bbbb-222222222222')
 BEGIN
-    INSERT INTO Subscriptions (SubscriptionId, CustomerId, PartnerId, BankAccountNumber, BankCode,
+    INSERT INTO Subscriptions (SubscriptionId, CustomerId, PartnerId, BankAccountNumber,
                                PhoneNumber, PhoneOperator, Status, SubscribedAt, CreatedAt, IsDeleted)
     VALUES ('22222222-bbbb-bbbb-bbbb-222222222222',
             'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
             '22222222-2222-2222-2222-222222222222',
-            'SN012-9999-8888-7777', 'WALLET_DEMO',
+            'SN012-9999-8888-7777',
             '+221774445566', 'Wave',
             1, GETUTCDATE(), GETUTCDATE(), 0);
 END

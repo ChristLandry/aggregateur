@@ -15,7 +15,6 @@ public class CreateSubscriptionValidator : AbstractValidator<CreateSubscriptionC
     public CreateSubscriptionValidator()
     {
         RuleFor(x => x.Request.BankAccountNumber).NotEmpty().MaximumLength(50);
-        RuleFor(x => x.Request.BankCode).NotEmpty().MaximumLength(20);
         RuleFor(x => x.Request.PhoneNumber).NotEmpty().MaximumLength(20);
         RuleFor(x => x.Request.PhoneOperator).NotEmpty().MaximumLength(50);
     }
@@ -65,7 +64,6 @@ public class CreateSubscriptionCommandHandler : IRequestHandler<CreateSubscripti
             CustomerId = request.CustomerId,
             PartnerId = request.PartnerId,
             BankAccountNumber = request.Request.BankAccountNumber,
-            BankCode = request.Request.BankCode,
             PhoneNumber = request.Request.PhoneNumber,
             PhoneOperator = request.Request.PhoneOperator,
             ExpiresAt = request.Request.ExpiresAt
