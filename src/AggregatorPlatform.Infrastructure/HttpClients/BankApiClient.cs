@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using AggregatorPlatform.Application.DTOs;
 using AggregatorPlatform.Application.Interfaces;
 using AggregatorPlatform.Domain.Entities;
 using Microsoft.Extensions.Logging;
@@ -31,11 +32,20 @@ public class BankApiClient : IBankApiClient
         return resp ?? new BankBalanceResponse(accountNumber, 0, partner.Currency, "UNKNOWN");
     }
 
-    public async Task<BankKycResponse> GetKycAsync(Partner partner, string accountNumber, CancellationToken cancellationToken = default)
+    public async Task<BankKycDto> GetKycAsync(Partner partner, BankKycRequest request, CancellationToken cancellationToken = default)
     {
         var client = CreateClient(partner);
-        var resp = await client.GetFromJsonAsync<BankKycResponse>($"/bank/kyc?account={Uri.EscapeDataString(accountNumber)}", cancellationToken);
-        return resp ?? new BankKycResponse(accountNumber, string.Empty, "UNKNOWN", "NONE");
+        try
+        {
+            var response = await client.PostAsJsonAsync("/bank/kyc", request, cancellationToken);
+            var body = await response.Content.ReadFromJsonAsync<BankKycDto>(cancellationToken: cancellationToken);
+            return body ?? new BankKycDto(request.AccountNumber, string.Empty, null, null, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Bank KYC failed for partner {PartnerId} account {Account}", partner.PartnerId, request.AccountNumber);
+            return new BankKycDto(request.AccountNumber, string.Empty, null, null, null);
+        }
     }
 
     public async Task<BankTransactionResponse> DebitAsync(Partner partner, BankTransactionRequest request, CancellationToken cancellationToken = default)

@@ -19,6 +19,10 @@ public class AccountingSchemaConfiguration : IEntityTypeConfiguration<Accounting
         b.HasOne(x => x.Partner).WithMany(p => p.AccountingSchemas).HasForeignKey(x => x.PartnerId).OnDelete(DeleteBehavior.Restrict);
         b.HasMany(x => x.Lines).WithOne(l => l.Schema!).HasForeignKey(l => l.SchemaId).OnDelete(DeleteBehavior.Cascade);
         b.HasIndex(x => new { x.TransactionType, x.TransactionSide, x.Channel, x.PartnerId, x.IsActive, x.Priority });
+
+        // L'AuditInterceptor transforme les DELETE en soft-delete (IsDeleted=true).
+        // Sans ce filtre, les schemas supprimes seraient encore visibles.
+        b.HasQueryFilter(x => !x.IsDeleted);
     }
 }
 
@@ -37,6 +41,10 @@ public class AccountingSchemaLineConfiguration : IEntityTypeConfiguration<Accoun
         b.Property(x => x.Side).HasConversion<int>();
         b.Property(x => x.Code).HasMaxLength(50);
         b.Property(x => x.Exploitant).HasMaxLength(50);
+
+        // Idem : les lignes supprimees (soft-delete) doivent disparaitre des reads
+        // et ne plus consommer leur LineOrder pour l'unicite metier.
+        b.HasQueryFilter(x => !x.IsDeleted);
     }
 }
 

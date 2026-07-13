@@ -14,5 +14,9 @@ public class Customer : AuditableEntity
     public CustomerStatus Status { get; set; } = CustomerStatus.Active;
     public KycStatus KycStatus { get; set; } = KycStatus.NotVerified;
 
+    /// <summary>Client racine auquel appartient ce Customer (nullable pour retro-compat).</summary>
+    public Guid? ClientId { get; set; }
+    public Client? Client { get; set; }
+
     public ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
 }

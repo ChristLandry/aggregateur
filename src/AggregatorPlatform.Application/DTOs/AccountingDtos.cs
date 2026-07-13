@@ -37,7 +37,7 @@ public record CreateAccountingSchemaRequest(
     Channel Channel,
     int Priority,
     string? Description,
-    IReadOnlyList<CreateAccountingSchemaLineRequest> Lines);
+    IReadOnlyList<CreateAccountingSchemaLineRequest>? Lines = null);
 
 public record CreateAccountingSchemaLineRequest(
     int LineOrder,
@@ -61,6 +61,21 @@ public record UpdateAccountingSchemaRequest(
     bool? IsActive,
     int? Priority,
     string? Description);
+
+/// <summary>Mise a jour complete d'une ligne de schema.</summary>
+public record UpdateAccountingSchemaLineRequest(
+    int LineOrder,
+    string AccountCode,
+    AccountType AccountType,
+    string? AccountExpression,
+    LedgerSide Side,
+    string AmountFormula,
+    string Label,
+    string? Code,
+    string? Exploitant,
+    bool IsFee,
+    bool IsConditional,
+    string? Condition);
 
 /// <summary>
 /// Mouvement comptable genere par l'application d'un schema sur une transaction.

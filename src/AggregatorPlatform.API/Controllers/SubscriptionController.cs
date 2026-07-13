@@ -18,8 +18,16 @@ public class SubscriptionController : BaseApiController
     public SubscriptionController(ICurrentPartnerService currentPartner) => _currentPartner = currentPartner;
 
     /// <summary>
+    /// Onboarding client complet : bank KYC + wallet KYC (via connector), comparaison
+    /// (phone/dateOfBirth/nationalId), lien wallet-compte, puis creation Client + Customer + Subscription.
+    /// </summary>
+    [HttpPost("onboard")]
+    public async Task<ActionResult<ApiResponse<OnboardCustomerResponse>>> Onboard([FromBody] OnboardCustomerRequest request, CancellationToken ct)
+        => ToResponse(await Mediator.Send(new OnboardCustomerCommand(request), ct));
+
+    /// <summary>
     /// Cree une nouvelle souscription pour un client existant.
-    /// Le partenaire est resolu UNIQUEMENT depuis le header X-Partner-Id
+    /// Le partenaire est resolu UNIQUEMENT depuis le header X-Partner-ApiKey
     /// (middleware PartnerAuth). Aucun PartnerId n'est attendu dans le body.
     /// </summary>
     [HttpPost]
@@ -42,7 +50,12 @@ public class SubscriptionController : BaseApiController
     public async Task<ActionResult<ApiResponse<SubscriptionDto>>> Get(Guid id, CancellationToken ct)
         => ToResponse(await Mediator.Send(new GetSubscriptionByIdQuery(id), ct));
 
-    /// <summary>Liste les souscriptions du partenaire courant (avec filtre optionnel par client).</summary>
+    /// <summary>
+    /// Liste les souscriptions.
+    /// - Partenaire métier : limité à ce partenaire.
+    /// - Partenaire WEB sans <c>partnerId</c> : toutes les souscriptions (vue admin).
+    /// - Partenaire WEB avec <c>partnerId</c> : filtre sur ce partenaire.
+    /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<SubscriptionDto>>>> GetForPartner(
         [FromQuery] Guid? partnerId,
@@ -56,7 +69,14 @@ public class SubscriptionController : BaseApiController
         [FromQuery] int? take,
         CancellationToken ct)
     {
-        var resolvedPartnerId = partnerId ?? _currentPartner.PartnerId!.Value;
+        Guid? resolvedPartnerId;
+        if (partnerId.HasValue)
+            resolvedPartnerId = partnerId;
+        else if (_currentPartner.Current?.IsWebPartner == true)
+            resolvedPartnerId = null; // toutes les souscriptions
+        else
+            resolvedPartnerId = _currentPartner.PartnerId!.Value;
+
         var q = new GetSubscriptionsByPartnerWithFilterQuery(
             resolvedPartnerId,
             subscribedAtDebut,

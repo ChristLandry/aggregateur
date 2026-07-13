@@ -4,6 +4,29 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace AggregatorPlatform.Infrastructure.Persistence.Configurations;
 
+public class ClientConfiguration : IEntityTypeConfiguration<Client>
+{
+    public void Configure(EntityTypeBuilder<Client> b)
+    {
+        b.ToTable("Clients");
+        b.HasKey(x => x.ClientId);
+        b.Property(x => x.BankAccountRoot)
+            .IsRequired().HasMaxLength(500)
+            .HasConversion(EncryptionValueConverter.ForString());
+        b.HasIndex(x => x.BankAccountRoot)
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0")
+            .HasDatabaseName("IX_Clients_BankAccountRoot_Unique");
+        b.Property(x => x.FullName).IsRequired().HasMaxLength(300);
+        b.Property(x => x.NationalId).HasMaxLength(500)
+            .HasConversion(EncryptionValueConverter.ForNullableString());
+        b.Property(x => x.PhoneNumber).HasMaxLength(500)
+            .HasConversion(EncryptionValueConverter.ForNullableString());
+        b.Property(x => x.Email).HasMaxLength(200);
+        b.HasQueryFilter(x => !x.IsDeleted);
+    }
+}
+
 public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
 {
     public void Configure(EntityTypeBuilder<Customer> b)
@@ -19,6 +42,11 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         b.Property(x => x.Email).HasMaxLength(200);
         b.Property(x => x.Status).HasConversion<int>();
         b.Property(x => x.KycStatus).HasConversion<int>();
+
+        // Lien vers Client racine (nullable pour retro-compat).
+        b.HasIndex(x => x.ClientId).HasDatabaseName("IX_Customers_ClientId");
+        b.HasOne(x => x.Client).WithMany(c => c.Customers).HasForeignKey(x => x.ClientId).OnDelete(DeleteBehavior.Restrict);
+
         b.HasQueryFilter(x => !x.IsDeleted);
     }
 }

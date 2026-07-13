@@ -38,9 +38,17 @@ public class AccountingController : BaseApiController
     public async Task<ActionResult<ApiResponse<Guid>>> AddLine(Guid id, [FromBody] CreateAccountingSchemaLineRequest line, CancellationToken ct)
         => ToResponse(await Mediator.Send(new AddSchemaLineCommand(id, line), ct));
 
-    /// <summary>Remove a line from a schema (admin only).</summary>
+    /// <summary>Update a schema line.</summary>
+    [HttpPut("schemas/{id:guid}/lines/{lineId:guid}")]
+    public async Task<ActionResult<ApiResponse>> UpdateLine(
+        Guid id,
+        Guid lineId,
+        [FromBody] UpdateAccountingSchemaLineRequest line,
+        CancellationToken ct)
+        => ToResponse(await Mediator.Send(new UpdateSchemaLineCommand(id, lineId, line), ct));
+
+    /// <summary>Remove a line from a schema.</summary>
     [HttpDelete("schemas/{id:guid}/lines/{lineId:guid}")]
-    [Authorize(Roles = "Admin,SuperAdmin")]
     public async Task<ActionResult<ApiResponse>> RemoveLine(Guid id, Guid lineId, CancellationToken ct)
         => ToResponse(await Mediator.Send(new RemoveSchemaLineCommand(id, lineId), ct));
 

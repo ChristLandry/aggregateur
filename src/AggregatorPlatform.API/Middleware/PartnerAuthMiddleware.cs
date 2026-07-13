@@ -14,9 +14,8 @@ namespace AggregatorPlatform.API.Middleware;
 /// (stocke deja hashe en BD). En cas de succes, le Partner est mis en cache et
 /// expose via <see cref="ICurrentPartnerService"/>.
 ///
-/// Routes partner-scoped : /api/v1/subscriptions, /api/v1/financial
-/// (sauf certaines routes admin sous /financial/transactions* qui passent
-/// par le JWT classique).
+/// Routes partner-scoped : /api/v1/subscriptions, /api/v1/bank, /api/v1/wallet
+/// (et /api/v1/financial sauf /financial/transactions* admin JWT).
 /// </summary>
 public class PartnerAuthMiddleware
 {
@@ -55,6 +54,8 @@ public class PartnerAuthMiddleware
 
         var partnerScoped =
             path.StartsWith("/api/v1/subscriptions", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/v1/bank", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/v1/wallet", StringComparison.OrdinalIgnoreCase)
             || (path.StartsWith("/api/v1/financial", StringComparison.OrdinalIgnoreCase)
                 && !FinancialAdminPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase)));
 
@@ -105,35 +106,16 @@ public class PartnerAuthMiddleware
             return;
         }
 
-        // Un partenaire WEB ne peut pas appeler les routes financieres operationnelles
-        // (debit / credit / cancel / balance / kyc sous /api/v1/financial/{bank|wallet}/*).
+        // Un partenaire WEB ne peut pas appeler les routes operationnelles bank/wallet
+        // (ni l'ancien prefixe /api/v1/financial/{bank|wallet}/* s'il restait expose).
         // Les routes admin /api/v1/financial/transactions/* sont deja exemptees plus haut.
         if (partner.IsWebPartner &&
-            path.StartsWith("/api/v1/financial/", StringComparison.OrdinalIgnoreCase))
+            (path.StartsWith("/api/v1/bank", StringComparison.OrdinalIgnoreCase)
+             || path.StartsWith("/api/v1/wallet", StringComparison.OrdinalIgnoreCase)
+             || path.StartsWith("/api/v1/financial/", StringComparison.OrdinalIgnoreCase)))
         {
             await WriteError(context, 403, "WEB_PARTNER_FORBIDDEN",
                 "The WEB partner cannot access financial endpoints.");
-            return;
-        }
-
-        if (partner.RequireHmac)
-        {
-            if (!await ValidateHmacAsync(context, partner, encryption, apiKey))
-            {
-                await WriteError(context, 401, "INVALID_SIGNATURE",
-                    "HMAC signature is missing or invalid.");
-                return;
-            }
-        }
-
-        // 3) Rate limiting par minute (clef Partner+minute).
-        var minute = DateTime.UtcNow.ToString("yyyyMMddHHmm");
-        var rateKey = $"ratelimit:{partner.PartnerId}:{minute}";
-        var count = await cache.IncrementAsync(rateKey, TimeSpan.FromSeconds(70), context.RequestAborted);
-        if (count > partner.RateLimitPerMin)
-        {
-            await WriteError(context, 429, "RATE_LIMIT_EXCEEDED",
-                $"Rate limit of {partner.RateLimitPerMin}/min exceeded.");
             return;
         }
 
@@ -142,22 +124,6 @@ public class PartnerAuthMiddleware
         {
             await _next(context);
         }
-    }
-
-    /// <summary>
-    /// Valide la signature HMAC-SHA256 du body avec la cle API EN CLAIR
-    /// (transmise par le partenaire dans X-Partner-ApiKey).
-    /// </summary>
-    private static async Task<bool> ValidateHmacAsync(HttpContext context, Partner partner, IEncryptionService encryption, string apiKeyClear)
-    {
-        if (!context.Request.Headers.TryGetValue("X-Signature", out var sig)) return false;
-        context.Request.EnableBuffering();
-        using var reader = new StreamReader(context.Request.Body, Encoding.UTF8, leaveOpen: true);
-        var body = await reader.ReadToEndAsync();
-        context.Request.Body.Position = 0;
-
-        var expected = encryption.ComputeHmacSha256(body, apiKeyClear);
-        return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(expected), Encoding.UTF8.GetBytes(sig.ToString()));
     }
 
     private static Task WriteError(HttpContext ctx, int status, string code, string message)

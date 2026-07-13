@@ -7,6 +7,18 @@ public enum PartnerStatus
     Suspended = 2
 }
 
+/// <summary>
+/// Canaux d'envoi des alertes partenaire (flags combinables).
+/// </summary>
+[Flags]
+public enum AlertChannels
+{
+    None = 0,
+    Email = 1,
+    Sms = 2,
+    EmailAndSms = Email | Sms,
+}
+
 public enum CustomerStatus
 {
     Inactive = 0,

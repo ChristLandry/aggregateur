@@ -3,13 +3,14 @@ using AggregatorPlatform.Application.DTOs;
 using AggregatorPlatform.Application.Interfaces;
 using AggregatorPlatform.Domain.Interfaces;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace AggregatorPlatform.Application.Features.Financial.Queries;
 
 public record GetBankBalanceQuery(Guid PartnerId, Guid SubscriptionId) : IRequest<Result<BalanceDto>>;
 public record GetWalletBalanceQuery(Guid PartnerId, Guid SubscriptionId) : IRequest<Result<BalanceDto>>;
-public record GetBankKycQuery(Guid PartnerId, Guid SubscriptionId) : IRequest<Result<KycDto>>;
-public record GetWalletKycQuery(Guid PartnerId, Guid SubscriptionId) : IRequest<Result<KycDto>>;
+public record GetBankKycQuery(Guid PartnerId, BankKycRequest Request) : IRequest<Result<BankKycDto>>;
+public record GetWalletKycQuery(Guid PartnerId, WalletKycRequest Request) : IRequest<Result<WalletKycDto>>;
 
 public class GetBankBalanceQueryHandler : IRequestHandler<GetBankBalanceQuery, Result<BalanceDto>>
 {
@@ -43,13 +44,13 @@ public class GetWalletBalanceQueryHandler : IRequestHandler<GetWalletBalanceQuer
 {
     private readonly IPartnerRepository _partners;
     private readonly ISubscriptionRepository _subs;
-    private readonly IWalletApiClient _wallet;
+    private readonly IWalletConnectorResolver _walletResolver;
 
-    public GetWalletBalanceQueryHandler(IPartnerRepository partners, ISubscriptionRepository subs, IWalletApiClient wallet)
+    public GetWalletBalanceQueryHandler(IPartnerRepository partners, ISubscriptionRepository subs, IWalletConnectorResolver walletResolver)
     {
         _partners = partners;
         _subs = subs;
-        _wallet = wallet;
+        _walletResolver = walletResolver;
     }
 
     public async Task<Result<BalanceDto>> Handle(GetWalletBalanceQuery request, CancellationToken cancellationToken)
@@ -60,59 +61,49 @@ public class GetWalletBalanceQueryHandler : IRequestHandler<GetWalletBalanceQuer
         var partner = await _partners.GetByIdAsync(request.PartnerId, cancellationToken);
         if (partner is null) return Result<BalanceDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
-        var resp = await _wallet.GetBalanceAsync(partner, sub.PhoneNumber, cancellationToken);
+        var resp = await _walletResolver.Resolve(partner).GetBalanceAsync(partner, sub.PhoneNumber, cancellationToken);
         return Result<BalanceDto>.Success(new BalanceDto(resp.PhoneNumber, resp.Balance, resp.Currency, resp.Status));
     }
 }
 
-public class GetBankKycQueryHandler : IRequestHandler<GetBankKycQuery, Result<KycDto>>
+public class GetBankKycQueryHandler : IRequestHandler<GetBankKycQuery, Result<BankKycDto>>
 {
     private readonly IPartnerRepository _partners;
-    private readonly ISubscriptionRepository _subs;
     private readonly IBankApiClient _bank;
 
-    public GetBankKycQueryHandler(IPartnerRepository partners, ISubscriptionRepository subs, IBankApiClient bank)
+    public GetBankKycQueryHandler(IPartnerRepository partners, IBankApiClient bank)
     {
         _partners = partners;
-        _subs = subs;
         _bank = bank;
     }
 
-    public async Task<Result<KycDto>> Handle(GetBankKycQuery request, CancellationToken cancellationToken)
+    public async Task<Result<BankKycDto>> Handle(GetBankKycQuery request, CancellationToken cancellationToken)
     {
-        var sub = await _subs.GetByIdAsync(request.SubscriptionId, cancellationToken);
-        if (sub is null || sub.PartnerId != request.PartnerId)
-            return Result<KycDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found.");
         var partner = await _partners.GetByIdAsync(request.PartnerId, cancellationToken);
-        if (partner is null) return Result<KycDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
+        if (partner is null) return Result<BankKycDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
-        var resp = await _bank.GetKycAsync(partner, sub.BankAccountNumber, cancellationToken);
-        return Result<KycDto>.Success(new KycDto(resp.AccountNumber, resp.FullName, resp.Status, resp.KycLevel));
+        var dto = await _bank.GetKycAsync(partner, request.Request, cancellationToken);
+        return Result<BankKycDto>.Success(dto);
     }
 }
 
-public class GetWalletKycQueryHandler : IRequestHandler<GetWalletKycQuery, Result<KycDto>>
+public class GetWalletKycQueryHandler : IRequestHandler<GetWalletKycQuery, Result<WalletKycDto>>
 {
     private readonly IPartnerRepository _partners;
-    private readonly ISubscriptionRepository _subs;
-    private readonly IWalletApiClient _wallet;
+    private readonly IWalletConnectorResolver _walletResolver;
 
-    public GetWalletKycQueryHandler(IPartnerRepository partners, ISubscriptionRepository subs, IWalletApiClient wallet)
+    public GetWalletKycQueryHandler(IPartnerRepository partners, IWalletConnectorResolver walletResolver)
     {
         _partners = partners;
-        _subs = subs;
-        _wallet = wallet;
+        _walletResolver = walletResolver;
     }
 
-    public async Task<Result<KycDto>> Handle(GetWalletKycQuery request, CancellationToken cancellationToken)
+    public async Task<Result<WalletKycDto>> Handle(GetWalletKycQuery request, CancellationToken cancellationToken)
     {
-        var sub = await _subs.GetByIdAsync(request.SubscriptionId, cancellationToken);
-        if (sub is null || sub.PartnerId != request.PartnerId)
-            return Result<KycDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found.");
         var partner = await _partners.GetByIdAsync(request.PartnerId, cancellationToken);
-        if (partner is null) return Result<KycDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
+        if (partner is null) return Result<WalletKycDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
-        var resp = await _wallet.GetKycAsync(partner, sub.PhoneNumber, cancellationToken);
-        return Result<KycDto>.Success(new KycDto(resp.PhoneNumber, resp.FullName, resp.Status, resp.KycLevel));
+        var dto = await _walletResolver.Resolve(partner).GetKycAsync(partner, request.Request, cancellationToken);
+        return Result<WalletKycDto>.Success(dto);
     }
 }

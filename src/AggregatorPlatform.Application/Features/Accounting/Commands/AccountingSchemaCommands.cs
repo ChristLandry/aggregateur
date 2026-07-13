@@ -15,13 +15,13 @@ public class CreateAccountingSchemaValidator : AbstractValidator<CreateAccountin
     {
         RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Request.Priority).GreaterThanOrEqualTo(0);
-        RuleFor(x => x.Request.Lines).NotEmpty();
+        // Lines optionnelles à la création : les lignes s'ajoutent ensuite via POST .../lines
         RuleForEach(x => x.Request.Lines).ChildRules(line =>
         {
             line.RuleFor(l => l.AccountCode).NotEmpty().MaximumLength(50);
             line.RuleFor(l => l.AmountFormula).NotEmpty().MaximumLength(500);
             line.RuleFor(l => l.Label).NotEmpty().MaximumLength(200);
-        });
+        }).When(x => x.Request.Lines is { Count: > 0 });
     }
 }
 
@@ -38,6 +38,7 @@ public class CreateAccountingSchemaCommandHandler : IRequestHandler<CreateAccoun
 
     public async Task<Result<Guid>> Handle(CreateAccountingSchemaCommand request, CancellationToken cancellationToken)
     {
+        var lines = request.Request.Lines ?? Array.Empty<CreateAccountingSchemaLineRequest>();
         var schema = new AccountingSchema
         {
             Name = request.Request.Name,
@@ -48,7 +49,7 @@ public class CreateAccountingSchemaCommandHandler : IRequestHandler<CreateAccoun
             Priority = request.Request.Priority,
             Description = request.Request.Description,
             IsActive = true,
-            Lines = request.Request.Lines.Select(l => new AccountingSchemaLine
+            Lines = lines.Select(l => new AccountingSchemaLine
             {
                 LineOrder = l.LineOrder,
                 AccountCode = l.AccountCode,
@@ -142,6 +143,14 @@ public class AddSchemaLineCommandHandler : IRequestHandler<AddSchemaLineCommand,
         var schema = await _schemas.GetByIdAsync(request.SchemaId, cancellationToken);
         if (schema is null) return Result<Guid>.Failure("SCHEMA_NOT_FOUND", "Schema not found.");
 
+        // Unicite metier : LineOrder unique par schema (parmi les lignes non supprimees).
+        var duplicate = await _lines.ExistsAsync(
+            l => l.SchemaId == request.SchemaId && l.LineOrder == request.Line.LineOrder,
+            cancellationToken);
+        if (duplicate)
+            return Result<Guid>.Failure("LINE_ORDER_DUPLICATE",
+                $"LineOrder {request.Line.LineOrder} is already used in this schema.");
+
         var line = new AccountingSchemaLine
         {
             SchemaId = request.SchemaId,
@@ -183,6 +192,68 @@ public class RemoveSchemaLineCommandHandler : IRequestHandler<RemoveSchemaLineCo
         if (line is null || line.SchemaId != request.SchemaId)
             return Result.Failure("LINE_NOT_FOUND", "Schema line not found.");
         _lines.Remove(line);
+        await _uow.SaveChangesAsync(cancellationToken);
+        return Result.Success();
+    }
+}
+
+public record UpdateSchemaLineCommand(Guid SchemaId, Guid LineId, UpdateAccountingSchemaLineRequest Line)
+    : IRequest<Result>;
+
+public class UpdateSchemaLineValidator : AbstractValidator<UpdateSchemaLineCommand>
+{
+    public UpdateSchemaLineValidator()
+    {
+        RuleFor(x => x.Line.AccountCode).NotEmpty().MaximumLength(50);
+        RuleFor(x => x.Line.AmountFormula).NotEmpty().MaximumLength(500);
+        RuleFor(x => x.Line.Label).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Line.LineOrder).GreaterThan(0);
+    }
+}
+
+public class UpdateSchemaLineCommandHandler : IRequestHandler<UpdateSchemaLineCommand, Result>
+{
+    private readonly IRepository<AccountingSchemaLine> _lines;
+    private readonly IUnitOfWork _uow;
+
+    public UpdateSchemaLineCommandHandler(IRepository<AccountingSchemaLine> lines, IUnitOfWork uow)
+    {
+        _lines = lines;
+        _uow = uow;
+    }
+
+    public async Task<Result> Handle(UpdateSchemaLineCommand request, CancellationToken cancellationToken)
+    {
+        var line = await _lines.GetByIdAsync(request.LineId, cancellationToken);
+        if (line is null || line.SchemaId != request.SchemaId)
+            return Result.Failure("LINE_NOT_FOUND", "Schema line not found.");
+
+        // Unicite LineOrder par schema (hors ligne courante).
+        if (line.LineOrder != request.Line.LineOrder)
+        {
+            var duplicate = await _lines.ExistsAsync(
+                l => l.SchemaId == request.SchemaId
+                     && l.LineId != request.LineId
+                     && l.LineOrder == request.Line.LineOrder,
+                cancellationToken);
+            if (duplicate)
+                return Result.Failure("LINE_ORDER_DUPLICATE",
+                    $"LineOrder {request.Line.LineOrder} is already used in this schema.");
+        }
+
+        line.LineOrder = request.Line.LineOrder;
+        line.AccountCode = request.Line.AccountCode;
+        line.AccountType = request.Line.AccountType;
+        line.AccountExpression = request.Line.AccountExpression;
+        line.Side = request.Line.Side;
+        line.AmountFormula = request.Line.AmountFormula;
+        line.Label = request.Line.Label;
+        line.Code = request.Line.Code;
+        line.Exploitant = request.Line.Exploitant;
+        line.IsFee = request.Line.IsFee;
+        line.IsConditional = request.Line.IsConditional;
+        line.Condition = request.Line.Condition;
+
         await _uow.SaveChangesAsync(cancellationToken);
         return Result.Success();
     }

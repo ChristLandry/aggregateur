@@ -12,8 +12,11 @@ public record GetSubscriptionByIdQuery(Guid SubscriptionId) : IRequest<Result<Su
 
 public record GetSubscriptionsByPartnerQuery(Guid PartnerId, Guid? CustomerId) : IRequest<Result<IReadOnlyList<SubscriptionDto>>>;
 
+/// <param name="PartnerId">
+/// Filtre partenaire. <c>null</c> = toutes les souscriptions (mode admin WEB).
+/// </param>
 public record GetSubscriptionsByPartnerWithFilterQuery(
-    Guid PartnerId,
+    Guid? PartnerId,
     DateTime? SubscribedAtDebut,
     DateTime? SubscribedAtFin,
     string? PhoneNumber,
@@ -55,7 +58,10 @@ public class GetSubscriptionsByPartnerWithFilterQueryHandler : IRequestHandler<G
 
     public async Task<Result<IReadOnlyList<SubscriptionDto>>> Handle(GetSubscriptionsByPartnerWithFilterQuery request, CancellationToken cancellationToken)
     {
-        var query = _subs.Query().Where(s => s.PartnerId == request.PartnerId);
+        var query = _subs.Query().AsQueryable();
+
+        if (request.PartnerId.HasValue)
+            query = query.Where(s => s.PartnerId == request.PartnerId.Value);
 
         if (request.CustomerId.HasValue)
             query = query.Where(s => s.CustomerId == request.CustomerId.Value);

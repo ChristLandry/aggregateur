@@ -19,16 +19,16 @@ public class WalletDebitValidator : AbstractValidator<WalletDebitCommand>
 
 public class WalletDebitCommandHandler : FinancialBaseHandler, IRequestHandler<WalletDebitCommand, Result<TransactionDto>>
 {
-    private readonly IWalletApiClient _wallet;
+    private readonly IWalletConnectorResolver _walletResolver;
 
     public WalletDebitCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
         IPartnerEndpointRepository partnerEndpoints,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
-        IMapper mapper, ILogger<WalletDebitCommandHandler> logger, IWalletApiClient wallet)
+        IMapper mapper, ILogger<WalletDebitCommandHandler> logger, IWalletConnectorResolver walletResolver)
         : base(transactions, subscriptions, partners, partnerEndpoints, uow, accounting, webhooks, mapper, logger)
     {
-        _wallet = wallet;
+        _walletResolver = walletResolver;
     }
 
     public async Task<Result<TransactionDto>> Handle(WalletDebitCommand request, CancellationToken cancellationToken)
@@ -52,8 +52,8 @@ public class WalletDebitCommandHandler : FinancialBaseHandler, IRequestHandler<W
 
         try
         {
-            // Appel HTTP au partenaire wallet => debite/credite le wallet du client.
-            var resp = await _wallet.DebitAsync(partner!, new WalletTransactionRequest(
+            // Appel HTTP au partenaire wallet => connecteur choisi par le resolver (PartnerCode).
+            var resp = await _walletResolver.Resolve(partner!).DebitAsync(partner!, new WalletTransactionRequest(
                 tx.PartnerTransactionRef, request.Request.PhoneNumber!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
             await FinalizeAsync(tx, resp.ExternalRef,
@@ -79,16 +79,16 @@ public class WalletCreditValidator : AbstractValidator<WalletCreditCommand>
 
 public class WalletCreditCommandHandler : FinancialBaseHandler, IRequestHandler<WalletCreditCommand, Result<TransactionDto>>
 {
-    private readonly IWalletApiClient _wallet;
+    private readonly IWalletConnectorResolver _walletResolver;
 
     public WalletCreditCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
         IPartnerEndpointRepository partnerEndpoints,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
-        IMapper mapper, ILogger<WalletCreditCommandHandler> logger, IWalletApiClient wallet)
+        IMapper mapper, ILogger<WalletCreditCommandHandler> logger, IWalletConnectorResolver walletResolver)
         : base(transactions, subscriptions, partners, partnerEndpoints, uow, accounting, webhooks, mapper, logger)
     {
-        _wallet = wallet;
+        _walletResolver = walletResolver;
     }
 
     public async Task<Result<TransactionDto>> Handle(WalletCreditCommand request, CancellationToken cancellationToken)
@@ -112,8 +112,8 @@ public class WalletCreditCommandHandler : FinancialBaseHandler, IRequestHandler<
 
         try
         {
-            // Appel HTTP au partenaire wallet => credite le wallet du client.
-            var resp = await _wallet.CreditAsync(partner!, new WalletTransactionRequest(
+            // Connecteur choisi via resolver a partir de PartnerCode.
+            var resp = await _walletResolver.Resolve(partner!).CreditAsync(partner!, new WalletTransactionRequest(
                 tx.PartnerTransactionRef, request.Request.PhoneNumber!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
 
             await FinalizeAsync(tx, resp.ExternalRef,
@@ -143,16 +143,16 @@ public class WalletCancelValidator : AbstractValidator<WalletCancelCommand>
 
 public class WalletCancelCommandHandler : FinancialBaseHandler, IRequestHandler<WalletCancelCommand, Result<TransactionDto>>
 {
-    private readonly IWalletApiClient _wallet;
+    private readonly IWalletConnectorResolver _walletResolver;
 
     public WalletCancelCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
         IPartnerEndpointRepository partnerEndpoints,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
-        IMapper mapper, ILogger<WalletCancelCommandHandler> logger, IWalletApiClient wallet)
+        IMapper mapper, ILogger<WalletCancelCommandHandler> logger, IWalletConnectorResolver walletResolver)
         : base(transactions, subscriptions, partners, partnerEndpoints, uow, accounting, webhooks, mapper, logger)
     {
-        _wallet = wallet;
+        _walletResolver = walletResolver;
     }
 
     public async Task<Result<TransactionDto>> Handle(WalletCancelCommand request, CancellationToken cancellationToken)
@@ -190,7 +190,7 @@ public class WalletCancelCommandHandler : FinancialBaseHandler, IRequestHandler<
 
         try
         {
-            var resp = await _wallet.CancelAsync(partner!, request.Request.OriginalExternalRef, cancellationToken);
+            var resp = await _walletResolver.Resolve(partner!).CancelAsync(partner!, request.Request.OriginalExternalRef, cancellationToken);
             var success = resp.Status.Equals("SUCCESS", StringComparison.OrdinalIgnoreCase);
             if (success)
             {

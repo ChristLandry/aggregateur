@@ -19,6 +19,10 @@ public class PartnerConfiguration : IEntityTypeConfiguration<Partner>
         b.Property(x => x.Currency).IsRequired().HasMaxLength(3);
         b.Property(x => x.WebhookUrl).HasMaxLength(500);
         b.Property(x => x.IpWhitelist).HasMaxLength(1000);
+        b.Property(x => x.ContactEmail).HasMaxLength(200);
+        b.Property(x => x.ContactPhone).HasMaxLength(30);
+        b.Property(x => x.LowBalanceReferenceAmount).HasPrecision(18, 4);
+        b.Property(x => x.AlertChannels).HasConversion<int?>();
         b.Property(x => x.Status).HasConversion<int>();
         b.Property(x => x.IsWebPartner).HasDefaultValue(false);
         b.HasIndex(x => x.IsWebPartner).HasDatabaseName("IX_Partners_IsWebPartner");

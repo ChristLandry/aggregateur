@@ -22,6 +22,7 @@ public class AggregatorDbContext : DbContext
     public DbSet<Partner> Partners => Set<Partner>();
     public DbSet<PartnerAccount> PartnerAccounts => Set<PartnerAccount>();
     public DbSet<PartnerAccountMovement> PartnerAccountMovements => Set<PartnerAccountMovement>();
+    public DbSet<Client> Clients => Set<Client>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<Transaction> Transactions => Set<Transaction>();

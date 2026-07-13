@@ -11,8 +11,11 @@ public record PartnerDto(
     PartnerStatus Status,
     string Currency,
     string? WebhookUrl,
-    int RateLimitPerMin,
-    bool RequireHmac,
+    string? ContactEmail,
+    string? ContactPhone,
+    int? LowBalanceThresholdPercent,
+    decimal? LowBalanceReferenceAmount,
+    AlertChannels? AlertChannels,
     DateTime CreatedAt,
     DateTime? UpdatedAt);
 
@@ -24,9 +27,12 @@ public record CreatePartnerRequest(
     string? PartnerBankAccount,
     string? AccountCode,
     string? WebhookUrl,
-    int RateLimitPerMin,
     string? IpWhitelist,
-    bool RequireHmac);
+    string? ContactEmail = null,
+    string? ContactPhone = null,
+    int? LowBalanceThresholdPercent = null,
+    decimal? LowBalanceReferenceAmount = null,
+    AlertChannels? AlertChannels = null);
 
 public record CreatePartnerResponse(Guid PartnerId, string PartnerCode, string ApiKey);
 
@@ -40,11 +46,14 @@ public record UpdatePartnerRequest(
     string? BaseUrl,
     string? AccountCode,
     string? WebhookUrl,
-    int? RateLimitPerMin,
     string? IpWhitelist,
-    bool? RequireHmac,
     string? Currency,
-    string? PartnerBankAccount);
+    string? PartnerBankAccount,
+    string? ContactEmail = null,
+    string? ContactPhone = null,
+    int? LowBalanceThresholdPercent = null,
+    decimal? LowBalanceReferenceAmount = null,
+    AlertChannels? AlertChannels = null);
 
 public record UpdatePartnerBalanceRequest(decimal Balance, string? Reason);
 

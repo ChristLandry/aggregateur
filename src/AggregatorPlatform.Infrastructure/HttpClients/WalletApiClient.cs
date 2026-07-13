@@ -1,71 +1,106 @@
-using System.Net.Http.Json;
+using AggregatorPlatform.Application.DTOs;
 using AggregatorPlatform.Application.Interfaces;
 using AggregatorPlatform.Domain.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace AggregatorPlatform.Infrastructure.HttpClients;
 
+/// <summary>
+/// Connecteur wallet generique — MODE MOCK.
+/// Toutes les operations renvoient une reponse SUCCESS deterministe, sans appel
+/// HTTP sortant. Le OnboardCustomerCommandHandler enchaine ensuite normalement
+/// la persistance Client + Customer + Subscription. Les logs [MOCK Wallet]
+/// tracent chaque appel. Retirer les stubs et restaurer les appels HttpClient
+/// une fois les partenaires wallet reels disponibles.
+/// </summary>
 public class WalletApiClient : IWalletApiClient
 {
-    private readonly IHttpClientFactory _factory;
+    private const string MockLinkIdPrefix = "mock-wallet-link-";
+    private const string MockNationalId = "MOCK-SN-1990-0001";
+    private const string MockFullName = "Mock Wallet Customer";
+    private static readonly DateOnly MockDateOfBirth = new(1990, 1, 1);
+
     private readonly ILogger<WalletApiClient> _logger;
 
+    // IHttpClientFactory reste injecte pour ne pas casser la DI, non utilise ici.
     public WalletApiClient(IHttpClientFactory factory, ILogger<WalletApiClient> logger)
     {
-        _factory = factory;
         _logger = logger;
+        _ = factory;
     }
 
-    private HttpClient CreateClient(Partner partner)
+    public Task<WalletBalanceResponse> GetBalanceAsync(Partner partner, string phoneNumber, CancellationToken cancellationToken = default)
     {
-        var client = _factory.CreateClient("PartnerWallet");
-        client.BaseAddress = new Uri(partner.BaseUrl);
-        client.DefaultRequestHeaders.Add("X-Partner-Id", partner.PartnerId.ToString());
-        return client;
+        _logger.LogInformation("[MOCK Wallet] GetBalance {PartnerId} phone={Phone}", partner.PartnerId, phoneNumber);
+        return Task.FromResult(new WalletBalanceResponse(phoneNumber, 10_000m, partner.Currency, "ACTIVE"));
     }
 
-    public async Task<WalletBalanceResponse> GetBalanceAsync(Partner partner, string phoneNumber, CancellationToken cancellationToken = default)
+    public Task<WalletKycDto> GetKycAsync(Partner partner, WalletKycRequest request, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var resp = await client.GetFromJsonAsync<WalletBalanceResponse>($"/wallet/balance?phone={Uri.EscapeDataString(phoneNumber)}", cancellationToken);
-        return resp ?? new WalletBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
+        _logger.LogInformation("[MOCK Wallet] GetKyc {PartnerId} phone={Phone}", partner.PartnerId, request.PhoneNumber);
+        return Task.FromResult(new WalletKycDto(
+            PhoneNumber: request.PhoneNumber,
+            FullName: MockFullName,
+            DateOfBirth: MockDateOfBirth,
+            NationalId: MockNationalId));
     }
 
-    public async Task<WalletKycResponse> GetKycAsync(Partner partner, string phoneNumber, CancellationToken cancellationToken = default)
+    public Task<WalletTransactionResponse> DebitAsync(Partner partner, WalletTransactionRequest request, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var resp = await client.GetFromJsonAsync<WalletKycResponse>($"/wallet/kyc?phone={Uri.EscapeDataString(phoneNumber)}", cancellationToken);
-        return resp ?? new WalletKycResponse(phoneNumber, string.Empty, "UNKNOWN", "NONE");
+        _logger.LogInformation("[MOCK Wallet] Debit {PartnerId} ref={Ref} amount={Amount}", partner.PartnerId, request.PartnerRef, request.Amount);
+        return Task.FromResult(new WalletTransactionResponse(
+            ExternalRef: MockLinkIdPrefix + Guid.NewGuid().ToString("N")[..8],
+            Status: "SUCCESS",
+            FailureReason: null));
     }
 
-    public async Task<WalletTransactionResponse> DebitAsync(Partner partner, WalletTransactionRequest request, CancellationToken cancellationToken = default)
+    public Task<WalletTransactionResponse> CreditAsync(Partner partner, WalletTransactionRequest request, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var response = await client.PostAsJsonAsync("/wallet/debit", request, cancellationToken);
-        var body = await response.Content.ReadFromJsonAsync<WalletTransactionResponse>(cancellationToken: cancellationToken);
-        return body ?? new WalletTransactionResponse(string.Empty, response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        _logger.LogInformation("[MOCK Wallet] Credit {PartnerId} ref={Ref} amount={Amount}", partner.PartnerId, request.PartnerRef, request.Amount);
+        return Task.FromResult(new WalletTransactionResponse(
+            ExternalRef: MockLinkIdPrefix + Guid.NewGuid().ToString("N")[..8],
+            Status: "SUCCESS",
+            FailureReason: null));
     }
 
-    public async Task<WalletTransactionResponse> CreditAsync(Partner partner, WalletTransactionRequest request, CancellationToken cancellationToken = default)
+    public Task<WalletTransactionResponse> CancelAsync(Partner partner, string externalRef, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var response = await client.PostAsJsonAsync("/wallet/credit", request, cancellationToken);
-        var body = await response.Content.ReadFromJsonAsync<WalletTransactionResponse>(cancellationToken: cancellationToken);
-        return body ?? new WalletTransactionResponse(string.Empty, response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        _logger.LogInformation("[MOCK Wallet] Cancel {PartnerId} ref={Ref}", partner.PartnerId, externalRef);
+        return Task.FromResult(new WalletTransactionResponse(externalRef, "SUCCESS", null));
     }
 
-    public async Task<WalletTransactionResponse> CancelAsync(Partner partner, string externalRef, CancellationToken cancellationToken = default)
+    public Task<WalletTransactionResponse> GetStatusAsync(Partner partner, string externalRef, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var response = await client.PostAsJsonAsync("/wallet/cancel", new { externalRef }, cancellationToken);
-        var body = await response.Content.ReadFromJsonAsync<WalletTransactionResponse>(cancellationToken: cancellationToken);
-        return body ?? new WalletTransactionResponse(externalRef, response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        _logger.LogInformation("[MOCK Wallet] GetStatus {PartnerId} ref={Ref}", partner.PartnerId, externalRef);
+        return Task.FromResult(new WalletTransactionResponse(externalRef, "SUCCESS", null));
     }
 
-    public async Task<WalletTransactionResponse> GetStatusAsync(Partner partner, string externalRef, CancellationToken cancellationToken = default)
+    public Task<WalletLinkResponse> LinkAsync(Partner partner, WalletLinkRequest request, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var resp = await client.GetFromJsonAsync<WalletTransactionResponse>($"/wallet/status?ref={Uri.EscapeDataString(externalRef)}", cancellationToken);
-        return resp ?? new WalletTransactionResponse(externalRef, "UNKNOWN", null);
+        var linkId = MockLinkIdPrefix + Guid.NewGuid().ToString("N")[..12];
+        _logger.LogInformation("[MOCK Wallet] Link {PartnerId} phone={Phone} bank={Bank} -> {LinkId}",
+            partner.PartnerId, request.PhoneNumber, request.BankAccount, linkId);
+        return Task.FromResult(new WalletLinkResponse(
+            LinkId: linkId,
+            PhoneNumber: request.PhoneNumber,
+            Status: "SUCCESS",
+            FailureReason: null));
+    }
+
+    public Task<WalletLinkResponse> UnlinkAsync(Partner partner, WalletUnlinkRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.LinkId) && string.IsNullOrWhiteSpace(request.PhoneNumber))
+        {
+            return Task.FromResult(new WalletLinkResponse(null, string.Empty, "FAILED",
+                "LinkId or PhoneNumber must be provided."));
+        }
+
+        _logger.LogInformation("[MOCK Wallet] Unlink {PartnerId} linkId={LinkId} phone={Phone}",
+            partner.PartnerId, request.LinkId, request.PhoneNumber);
+        return Task.FromResult(new WalletLinkResponse(
+            LinkId: request.LinkId ?? MockLinkIdPrefix + "unlinked",
+            PhoneNumber: request.PhoneNumber ?? string.Empty,
+            Status: "SUCCESS",
+            FailureReason: null));
     }
 }

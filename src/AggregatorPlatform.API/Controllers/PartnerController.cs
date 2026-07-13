@@ -9,11 +9,12 @@ using Microsoft.AspNetCore.Mvc;
 namespace AggregatorPlatform.API.Controllers;
 
 [Route("api/v1/partners")]
-[Authorize(Roles = "Admin,SuperAdmin")]
+[Authorize(Roles = "Admin,SuperAdmin,Finance")]
 public class PartnerController : BaseApiController
 {
     /// <summary>Create a new partner.</summary>
     [HttpPost]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public async Task<ActionResult<ApiResponse<CreatePartnerResponse>>> Create([FromBody] CreatePartnerRequest request, CancellationToken ct)
         => ToResponse(await Mediator.Send(new CreatePartnerCommand(request), ct));
 
@@ -39,16 +40,19 @@ public class PartnerController : BaseApiController
 
     /// <summary>Update a partner.</summary>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public async Task<ActionResult<ApiResponse>> Update(Guid id, [FromBody] UpdatePartnerRequest request, CancellationToken ct)
         => ToResponse(await Mediator.Send(new UpdatePartnerCommand(id, request), ct));
 
     /// <summary>Change partner status.</summary>
     [HttpPatch("{id:guid}/status")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public async Task<ActionResult<ApiResponse>> ChangeStatus(Guid id, [FromBody] ChangePartnerStatusRequest request, CancellationToken ct)
         => ToResponse(await Mediator.Send(new ChangePartnerStatusCommand(id, request.Status), ct));
 
     /// <summary>Rotate API key.</summary>
     [HttpPost("{id:guid}/rotate-key")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public async Task<ActionResult<ApiResponse<RotateApiKeyResponse>>> RotateKey(Guid id, CancellationToken ct)
         => ToResponse(await Mediator.Send(new RotatePartnerApiKeyCommand(id), ct));
 

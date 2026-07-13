@@ -63,11 +63,40 @@ public static class DependencyInjection
             .AddPolicyHandler(GetRetryPolicy());
 
         services.AddScoped<IBankApiClient, BankApiClient>();
-        services.AddScoped<IWalletApiClient, WalletApiClient>();
+
+        // Connecteurs wallet : registres en concret + resolver qui choisit selon Partner.PartnerCode.
+        // IWalletApiClient reste bind vers le generique par defaut (retro-compat pour jobs de fond
+        // comme ReconciliationJob qui n'ont pas de Partner ambient au moment du GetRequiredService).
+        services.AddScoped<WalletApiClient>();
+        services.AddScoped<WaveLinkedAccountConnector>();
+        services.AddScoped<IWalletApiClient>(sp => sp.GetRequiredService<WalletApiClient>());
+        services.AddScoped<IWalletConnectorResolver, WalletConnectorResolver>();
+
+        // Façade Wave externe (Aggregator.WaveConnector.Api) : HttpClient nommé + client typé.
+        // Le header Api-Key est ajouté ici pour ne JAMAIS transiter par du code applicatif.
+        services.Configure<WaveConnectorOptions>(configuration.GetSection(WaveConnectorOptions.SectionName));
+        services.AddHttpClient(WaveConnectorHttpClient.HttpClientName, (sp, client) =>
+        {
+            var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<WaveConnectorOptions>>().Value;
+            if (string.IsNullOrWhiteSpace(opts.BaseUrl))
+                throw new InvalidOperationException($"Configuration manquante : {WaveConnectorOptions.SectionName}:BaseUrl.");
+            if (string.IsNullOrWhiteSpace(opts.ApiKey))
+                throw new InvalidOperationException($"Configuration manquante : {WaveConnectorOptions.SectionName}:ApiKey.");
+            client.BaseAddress = new Uri(opts.BaseUrl);
+            client.DefaultRequestHeaders.Add("Api-Key", opts.ApiKey);
+        })
+        .AddPolicyHandler(GetRetryPolicy())
+        .AddPolicyHandler(GetCircuitBreakerPolicy());
+        services.AddScoped<IWaveConnectorClient, WaveConnectorHttpClient>();
+
+        // Notifications (mock : log-only)
+        services.AddSingleton<IEmailSender, MockEmailSender>();
+        services.AddSingleton<ISmsSender, MockSmsSender>();
 
         // Background jobs
         services.AddHostedService<ReconciliationJob>();
         services.AddHostedService<WebhookDispatchJob>();
+        services.AddHostedService<PartnerBalanceAlertJob>();
 
         return services;
     }

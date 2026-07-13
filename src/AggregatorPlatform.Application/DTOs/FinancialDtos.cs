@@ -73,3 +73,50 @@ public record BalanceQueryRequest(Guid SubscriptionId);
 public record BalanceDto(string Identifier, decimal Balance, string Currency, string Status);
 
 public record KycDto(string Identifier, string FullName, string Status, string KycLevel);
+
+/// <summary>Requete de KYC wallet cote partenaire.</summary>
+/// <param name="PhoneNumber">Numero du wallet (obligatoire).</param>
+/// <param name="PartnerTemporalyCode">Code temporaire fourni par le partenaire (nonce, OTP, ...).</param>
+/// <param name="Extras">Donnees additionnelles libres transmises par le partenaire.</param>
+public record WalletKycRequest(
+    string PhoneNumber,
+    string? PartnerTemporalyCode,
+    Dictionary<string, object?>? Extras);
+
+/// <summary>Reponse KYC wallet : identite du client rattachee au wallet.</summary>
+public record WalletKycDto(
+    string PhoneNumber,
+    string FullName,
+    DateOnly DateOfBirth,
+    string? NationalId);
+
+/// <summary>Requete de KYC bank cote partenaire (POST /api/v1/bank/kyc).</summary>
+/// <param name="AccountNumber">Numero de compte bancaire (obligatoire).</param>
+/// <param name="PartnerTemporalyCode">Code temporaire fourni par le partenaire (nonce/OTP).</param>
+/// <param name="Extras">Donnees additionnelles libres transmises par le partenaire.</param>
+public record BankKycRequest(
+    string AccountNumber,
+    string? PartnerTemporalyCode,
+    Dictionary<string, object?>? Extras);
+
+/// <summary>Reponse KYC bank : identite du client rattachee au compte bancaire.</summary>
+public record BankKycDto(
+    string AccountNumber,
+    string FullName,
+    DateOnly? DateOfBirth,
+    string? NationalId,
+    string? PhoneNumber);
+
+/// <summary>
+/// Enveloppe de reponse specifique aux operations wallet transactionnelles
+/// (link, unlink). Portee sur le fil, non enveloppee dans ApiResponse&lt;T&gt;.
+/// </summary>
+public record WalletOperationEnvelope(
+    bool Success,
+    Guid? TransactionId,
+    string? PartnerTransactionRef,
+    string? Status,
+    object? Data,
+    string? ErrorCode,
+    string? ErrorMessage,
+    DateTime Timestamp);

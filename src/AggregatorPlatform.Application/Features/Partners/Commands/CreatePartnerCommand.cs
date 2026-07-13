@@ -23,11 +23,30 @@ public class CreatePartnerValidator : AbstractValidator<CreatePartnerCommand>
         RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Request.BaseUrl).NotEmpty().Must(url => url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("http://", StringComparison.OrdinalIgnoreCase));
         RuleFor(x => x.Request.Currency).NotEmpty().Length(3);
-        RuleFor(x => x.Request.RateLimitPerMin).GreaterThan(0);
         // PartnerBankAccount est OPTIONNEL : valide uniquement la longueur si fourni.
         When(x => !string.IsNullOrEmpty(x.Request.PartnerBankAccount), () =>
         {
             RuleFor(x => x.Request.PartnerBankAccount!).MaximumLength(64);
+        });
+
+        When(x => !string.IsNullOrEmpty(x.Request.ContactEmail), () =>
+        {
+            RuleFor(x => x.Request.ContactEmail!).EmailAddress().MaximumLength(200);
+        });
+
+        When(x => !string.IsNullOrEmpty(x.Request.ContactPhone), () =>
+        {
+            RuleFor(x => x.Request.ContactPhone!).MaximumLength(30);
+        });
+
+        When(x => x.Request.LowBalanceThresholdPercent.HasValue, () =>
+        {
+            RuleFor(x => x.Request.LowBalanceThresholdPercent!.Value).InclusiveBetween(1, 100);
+        });
+
+        When(x => x.Request.LowBalanceReferenceAmount.HasValue, () =>
+        {
+            RuleFor(x => x.Request.LowBalanceReferenceAmount!.Value).GreaterThan(0);
         });
     }
 }
@@ -74,9 +93,12 @@ public class CreatePartnerCommandHandler : IRequestHandler<CreatePartnerCommand,
             Status = PartnerStatus.Inactive,
             Currency = request.Request.Currency,
             WebhookUrl = request.Request.WebhookUrl,
-            RateLimitPerMin = request.Request.RateLimitPerMin,
             IpWhitelist = request.Request.IpWhitelist,
-            RequireHmac = request.Request.RequireHmac
+            ContactEmail = request.Request.ContactEmail,
+            ContactPhone = request.Request.ContactPhone,
+            LowBalanceThresholdPercent = request.Request.LowBalanceThresholdPercent,
+            LowBalanceReferenceAmount = request.Request.LowBalanceReferenceAmount,
+            AlertChannels = request.Request.AlertChannels
         };
         await _partners.AddAsync(partner, cancellationToken);
 

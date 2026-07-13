@@ -45,8 +45,6 @@ public static class WebPartnerSeeder
                 AccountCode = "P-WEB",
                 Status = PartnerStatus.Active,
                 Currency = "XOF",
-                RateLimitPerMin = 6000, // largesse pour un client interne
-                RequireHmac = false,
                 IsWebPartner = true,
             };
             db.Partners.Add(partner);
