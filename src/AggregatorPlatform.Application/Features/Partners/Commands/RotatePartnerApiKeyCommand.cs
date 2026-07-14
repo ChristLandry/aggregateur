@@ -31,6 +31,7 @@ public class RotatePartnerApiKeyCommandHandler : IRequestHandler<RotatePartnerAp
 
         var apiKey = _encryption.GenerateApiKey();
         partner.ApiKey = _encryption.ComputeSha256(apiKey);
+        partner.ApiKeyPlaintext = apiKey;   // met a jour aussi la version clair chiffree
         _partners.Update(partner);
         await _uow.SaveChangesAsync(cancellationToken);
 

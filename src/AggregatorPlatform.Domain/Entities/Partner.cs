@@ -9,7 +9,16 @@ public class Partner : AuditableEntity
     public string PartnerCode { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
+    /// <summary>SHA-256 hex de la cle API en clair (utilise pour l'auth cote middleware).</summary>
     public string ApiKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Cle API en CLAIR, chiffree AES-256 deterministe au repos (colonne <c>ApiKeyPlaintext</c>).
+    /// Permet a un admin de recuperer la cle apres coup via GET /partners/:id/api-key.
+    /// Nullable pour les partenaires migres depuis l'ancien schema (avant cette colonne) ;
+    /// dans ce cas seul un rotate-key repeuple la valeur.
+    /// </summary>
+    public string? ApiKeyPlaintext { get; set; }
     public string? AccountCode { get; set; }
     public PartnerStatus Status { get; set; } = PartnerStatus.Inactive;
     public string Currency { get; set; } = "XOF";

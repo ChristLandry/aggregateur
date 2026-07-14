@@ -63,26 +63,33 @@ public static class WebPartnerSeeder
         }
         else
         {
-            // PERSISTENCE DES CLES API APRES REDEMARRAGE :
-            // On NE TOUCHE PLUS Partner.ApiKey ici. Cela permet de conserver
-            // les rotations effectuees via POST /partners/:id/rotate-key
-            // (ou toute autre modification manuelle). Idem pour les autres
-            // partenaires : leur ApiKey est stocke en BD une fois pour toutes.
-            //
-            // On resynchronise uniquement les invariants techniques (flag +
-            // statut Active) pour garantir que le partenaire WEB reste utilisable.
-            var changed = false;
-            if (!existing.IsWebPartner) { existing.IsWebPartner = true; changed = true; }
-            if (existing.Status != PartnerStatus.Active) { existing.Status = PartnerStatus.Active; changed = true; }
-            if (changed)
+            // WEB : toujours realigner le hash sur Web:PartnerApiKey (source de verite
+            // partagee avec NEXT_PUBLIC_WEB_PARTNER_APIKEY cote front).
+            existing.ApiKey = apiKeyHash;
+            existing.ApiKeyPlaintext = clearApiKey;
+            if (!existing.IsWebPartner) { existing.IsWebPartner = true; }
+            if (existing.Status != PartnerStatus.Active) { existing.Status = PartnerStatus.Active; }
+
+            // Compte miroir obligatoire : sans PartnerAccount, GetByApiKeyHashAsync
+            // (Include required 1-1) peut exclure le partenaire WEB du resultat.
+            var hasAccount = await db.PartnerAccounts.IgnoreQueryFilters()
+                .AnyAsync(a => a.PartnerId == existing.PartnerId, ct);
+            if (!hasAccount)
             {
-                await db.SaveChangesAsync(ct);
-                logger.LogInformation("Partenaire WEB resynchronise (PartnerId={Id}).", existing.PartnerId);
+                db.PartnerAccounts.Add(new PartnerAccount
+                {
+                    PartnerId = existing.PartnerId,
+                    PartnerBankAccount = string.Empty,
+                    Balance = 0,
+                    Currency = existing.Currency ?? "XOF",
+                });
+                logger.LogInformation("Compte miroir WEB cree (PartnerId={Id}).", existing.PartnerId);
             }
-            else
-            {
-                logger.LogInformation("Partenaire WEB deja present, ApiKey preserve (PartnerId={Id}).", existing.PartnerId);
-            }
+
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation(
+                "Partenaire WEB resynchronise (PartnerId={Id}, ApiKey aligne sur Web:PartnerApiKey).",
+                existing.PartnerId);
         }
     }
 }

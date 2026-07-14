@@ -56,6 +56,18 @@ public class PartnerController : BaseApiController
     public async Task<ActionResult<ApiResponse<RotateApiKeyResponse>>> RotateKey(Guid id, CancellationToken ct)
         => ToResponse(await Mediator.Send(new RotatePartnerApiKeyCommand(id), ct));
 
+    /// <summary>
+    /// Recupere la cle API en clair d'un partenaire (endpoint sensible, admin only).
+    /// La cle est stockee chiffree AES-256 en BD et desormais persistante entre
+    /// les redemarrages. Retourne <c>API_KEY_UNAVAILABLE</c> pour les partenaires
+    /// crees avant la migration AddPartnerApiKeyPlaintext (dans ce cas, faire un
+    /// POST rotate-key pour regenerer et repeupler la valeur).
+    /// </summary>
+    [HttpGet("{id:guid}/api-key")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    public async Task<ActionResult<ApiResponse<RotateApiKeyResponse>>> GetApiKey(Guid id, CancellationToken ct)
+        => ToResponse(await Mediator.Send(new GetPartnerApiKeyQuery(id), ct));
+
     /// <summary>Get partner mirror account (full DTO).</summary>
     [HttpGet("{id:guid}/account")]
     [Authorize(Roles = "Admin,SuperAdmin,Partner")]

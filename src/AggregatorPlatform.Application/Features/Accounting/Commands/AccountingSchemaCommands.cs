@@ -124,6 +124,24 @@ public class UpdateAccountingSchemaCommandHandler : IRequestHandler<UpdateAccoun
 
 public record AddSchemaLineCommand(Guid SchemaId, CreateAccountingSchemaLineRequest Line) : IRequest<Result<Guid>>;
 
+public class AddSchemaLineValidator : AbstractValidator<AddSchemaLineCommand>
+{
+    public AddSchemaLineValidator()
+    {
+        RuleFor(x => x.Line.LineOrder).GreaterThan(0);
+        RuleFor(x => x.Line.AmountFormula).NotEmpty().MaximumLength(500);
+        RuleFor(x => x.Line.Label).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Line.AccountCode)
+            .NotEmpty()
+            .MaximumLength(50)
+            .When(x => x.Line.AccountType == Domain.Enums.AccountType.Fixed);
+        RuleFor(x => x.Line.AccountExpression)
+            .NotEmpty()
+            .MaximumLength(500)
+            .When(x => x.Line.AccountType == Domain.Enums.AccountType.Dynamic);
+    }
+}
+
 public class AddSchemaLineCommandHandler : IRequestHandler<AddSchemaLineCommand, Result<Guid>>
 {
     private readonly IAccountingSchemaRepository _schemas;
@@ -204,10 +222,17 @@ public class UpdateSchemaLineValidator : AbstractValidator<UpdateSchemaLineComma
 {
     public UpdateSchemaLineValidator()
     {
-        RuleFor(x => x.Line.AccountCode).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Line.AmountFormula).NotEmpty().MaximumLength(500);
         RuleFor(x => x.Line.Label).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Line.LineOrder).GreaterThan(0);
+        RuleFor(x => x.Line.AccountCode)
+            .NotEmpty()
+            .MaximumLength(50)
+            .When(x => x.Line.AccountType == Domain.Enums.AccountType.Fixed);
+        RuleFor(x => x.Line.AccountExpression)
+            .NotEmpty()
+            .MaximumLength(500)
+            .When(x => x.Line.AccountType == Domain.Enums.AccountType.Dynamic);
     }
 }
 

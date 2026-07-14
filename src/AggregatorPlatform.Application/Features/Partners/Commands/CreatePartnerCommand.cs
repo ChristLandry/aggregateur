@@ -89,6 +89,7 @@ public class CreatePartnerCommandHandler : IRequestHandler<CreatePartnerCommand,
             Name = request.Request.Name,
             BaseUrl = request.Request.BaseUrl,
             ApiKey = _encryption.ComputeSha256(apiKey),
+            ApiKeyPlaintext = apiKey,   // stocke le clair (chiffre AES-256 au repos)
             AccountCode = request.Request.AccountCode,
             Status = PartnerStatus.Inactive,
             Currency = request.Request.Currency,

@@ -73,30 +73,25 @@ public static class DependencyInjection
         services.AddScoped<IWalletConnectorResolver, WalletConnectorResolver>();
 
         // Façade Wave externe (Aggregator.WaveConnector.Api) : HttpClient nommé + client typé.
-        // Le header Api-Key est ajouté ici pour ne JAMAIS transiter par du code applicatif.
+        // La BaseAddress N'EST PAS configurée ici : chaque appel construit son URL absolue
+        // à partir de Partner.BaseUrl (chaque partenaire pointe sur sa propre instance).
+        // Seul le header X-Partner-Id (partagé, sensible) et les policies Polly sont ici.
         services.Configure<WaveConnectorOptions>(configuration.GetSection(WaveConnectorOptions.SectionName));
         services.AddHttpClient(WaveConnectorHttpClient.HttpClientName, (sp, client) =>
         {
             var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<WaveConnectorOptions>>().Value;
-            if (string.IsNullOrWhiteSpace(opts.BaseUrl))
-                throw new InvalidOperationException($"Configuration manquante : {WaveConnectorOptions.SectionName}:BaseUrl.");
             if (string.IsNullOrWhiteSpace(opts.ApiKey))
                 throw new InvalidOperationException($"Configuration manquante : {WaveConnectorOptions.SectionName}:ApiKey.");
-            client.BaseAddress = new Uri(opts.BaseUrl);
-            client.DefaultRequestHeaders.Add("Api-Key", opts.ApiKey);
+            // La façade Wave exige X-Partner-Id sur /api/wave/*.
+            client.DefaultRequestHeaders.Add("X-Partner-Id", opts.ApiKey);
         })
         .AddPolicyHandler(GetRetryPolicy())
         .AddPolicyHandler(GetCircuitBreakerPolicy());
         services.AddScoped<IWaveConnectorClient, WaveConnectorHttpClient>();
 
-        // Notifications (mock : log-only)
-        services.AddSingleton<IEmailSender, MockEmailSender>();
-        services.AddSingleton<ISmsSender, MockSmsSender>();
-
         // Background jobs
         services.AddHostedService<ReconciliationJob>();
         services.AddHostedService<WebhookDispatchJob>();
-        services.AddHostedService<PartnerBalanceAlertJob>();
 
         return services;
     }

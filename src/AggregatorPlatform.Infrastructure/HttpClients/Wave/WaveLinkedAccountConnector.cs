@@ -9,14 +9,15 @@ namespace AggregatorPlatform.Infrastructure.HttpClients;
 /// <summary>
 /// Connecteur exposé au reste de la codebase pour le partenaire <c>WAVE</c>.
 /// - kyc / link / unlink : délèguent à la façade externe via <see cref="IWaveConnectorClient"/>.
-/// - balance / debit / credit / cancel / status : la façade répond 501 → on garde
-///   un mock déterministe pour ne pas casser les autres flux tant que l'implémentation
-///   générique n'est pas branchée.
+/// - balance / debit / credit / cancel / status : la façade répond 501 (non implémenté).
+///   Ces méthodes lèvent <see cref="NotImplementedException"/> tant que la façade
+///   n'expose pas les endpoints correspondants (voir doc /api/wave/bank/*).
 /// </summary>
 public class WaveLinkedAccountConnector : IWalletApiClient
 {
-    private const string MockPrefix = "mock-wave-";
-    private const string WaveActiveStatus = "active";
+    private const string FacadeNotImplementedMessage =
+        "La façade Wave ne fournit pas cet endpoint (réponse 501). " +
+        "Utiliser un connecteur wallet spécifique ou implémenter l'endpoint côté façade.";
 
     private readonly IWaveConnectorClient _wave;
     private readonly ILogger<WaveLinkedAccountConnector> _logger;
@@ -35,11 +36,18 @@ public class WaveLinkedAccountConnector : IWalletApiClient
 
     public async Task<WalletKycDto> GetKycAsync(Partner partner, WalletKycRequest request, CancellationToken cancellationToken = default)
     {
-        // Contrat façade : { alias, walletTemporalyCode, extras }.
-        // Alias = PartnerCode par défaut (le back sait à quel partenaire il parle).
+        var otp = request.PartnerTemporalyCode?.Trim();
+        if (string.IsNullOrWhiteSpace(otp))
+        {
+            throw new WaveConnectorException(
+                "Wave KYC requires walletTemporalyCode (OTP).",
+                400);
+        }
+
         var kyc = await _wave.GetKycAsync(
-            walletTemporalyCode: request.PartnerTemporalyCode ?? request.PhoneNumber,
-            alias: partner.PartnerCode,
+            partner,
+            walletTemporalyCode: otp,
+            alias: request.PhoneNumber.Trim(),
             extras: request.Extras,
             cancellationToken);
 
@@ -48,7 +56,6 @@ public class WaveLinkedAccountConnector : IWalletApiClient
             CultureInfo.InvariantCulture, DateTimeStyles.None,
             out var parsed) ? parsed : default;
 
-        // La façade ne renvoie pas le numéro de téléphone → on echo l'entrée.
         return new WalletKycDto(
             PhoneNumber: request.PhoneNumber,
             FullName: kyc.FullNam ?? string.Empty,
@@ -58,13 +65,17 @@ public class WaveLinkedAccountConnector : IWalletApiClient
 
     public async Task<WalletLinkResponse> LinkAsync(Partner partner, WalletLinkRequest request, CancellationToken cancellationToken = default)
     {
-        // Contrat façade : { bankAccount, alias, extras.activationKey (obligatoire) }.
-        // Alias = PartnerRef côté client (utilisé aussi pour /unlink).
-        // activationKey = PartnerTemporalyCode fourni côté client, sinon PhoneNumber.
         var activationKey = TryReadExtra(request.Extras, "activationKey")
-                            ?? request.PhoneNumber;
+                            ?? TryReadExtra(request.Extras, "walletTemporalyCode");
+        if (string.IsNullOrWhiteSpace(activationKey))
+        {
+            throw new WaveConnectorException(
+                "Wave link requires extras.activationKey (wallet OTP).",
+                400);
+        }
 
         var link = await _wave.LinkAsync(
+            partner,
             bankAccount: request.BankAccount,
             alias: request.PartnerRef,
             activationKey: activationKey,
@@ -82,8 +93,6 @@ public class WaveLinkedAccountConnector : IWalletApiClient
 
     public async Task<WalletLinkResponse> UnlinkAsync(Partner partner, WalletUnlinkRequest request, CancellationToken cancellationToken = default)
     {
-        // Contrat façade unlink : alias = bank_link_reference utilisée lors du /link.
-        // On mappe : PartnerRef → alias (préféré), sinon LinkId comme repli.
         var alias = !string.IsNullOrWhiteSpace(request.PartnerRef)
             ? request.PartnerRef
             : request.LinkId ?? string.Empty;
@@ -97,9 +106,8 @@ public class WaveLinkedAccountConnector : IWalletApiClient
                 FailureReason: "Wave unlink requires PartnerRef (bank_link_reference) or LinkId.");
         }
 
-        // bankAccount n'est pas transporté dans WalletUnlinkRequest — la façade
-        // le tolère vide car elle route sur l'alias.
         var result = await _wave.UnlinkAsync(
+            partner,
             bankAccount: string.Empty,
             alias: alias,
             extras: null,
@@ -115,38 +123,23 @@ public class WaveLinkedAccountConnector : IWalletApiClient
     }
 
     // ---------------------------------------------------------------------
-    // Opérations que la façade renvoie en 501 → mock local
+    // Opérations non fournies par la façade Wave (501)
     // ---------------------------------------------------------------------
 
     public Task<WalletBalanceResponse> GetBalanceAsync(Partner partner, string phoneNumber, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("[MOCK Wave] GetBalance {PartnerId}", partner.PartnerId);
-        return Task.FromResult(new WalletBalanceResponse(phoneNumber, 10_000m, partner.Currency, "ACTIVE"));
-    }
+        => throw new NotImplementedException(FacadeNotImplementedMessage);
 
     public Task<WalletTransactionResponse> DebitAsync(Partner partner, WalletTransactionRequest request, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("[MOCK Wave] Debit {PartnerId} ref={Ref}", partner.PartnerId, request.PartnerRef);
-        return Task.FromResult(new WalletTransactionResponse(MockPrefix + Guid.NewGuid().ToString("N")[..8], "SUCCESS", null));
-    }
+        => throw new NotImplementedException(FacadeNotImplementedMessage);
 
     public Task<WalletTransactionResponse> CreditAsync(Partner partner, WalletTransactionRequest request, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("[MOCK Wave] Credit {PartnerId} ref={Ref}", partner.PartnerId, request.PartnerRef);
-        return Task.FromResult(new WalletTransactionResponse(MockPrefix + Guid.NewGuid().ToString("N")[..8], "SUCCESS", null));
-    }
+        => throw new NotImplementedException(FacadeNotImplementedMessage);
 
     public Task<WalletTransactionResponse> CancelAsync(Partner partner, string externalRef, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("[MOCK Wave] Cancel {PartnerId} ref={Ref}", partner.PartnerId, externalRef);
-        return Task.FromResult(new WalletTransactionResponse(externalRef, "SUCCESS", null));
-    }
+        => throw new NotImplementedException(FacadeNotImplementedMessage);
 
     public Task<WalletTransactionResponse> GetStatusAsync(Partner partner, string externalRef, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("[MOCK Wave] GetStatus {PartnerId} ref={Ref}", partner.PartnerId, externalRef);
-        return Task.FromResult(new WalletTransactionResponse(externalRef, "SUCCESS", null));
-    }
+        => throw new NotImplementedException(FacadeNotImplementedMessage);
 
     // ---------------------------------------------------------------------
     // Helpers
@@ -158,10 +151,6 @@ public class WaveLinkedAccountConnector : IWalletApiClient
         return v?.ToString();
     }
 
-    /// <summary>
-    /// La façade renvoie <c>extras.failureReason</c> sous forme d'objet ou de string
-    /// quand <c>success=false</c>. On tente une extraction souple sans exploser sur les types.
-    /// </summary>
     private static string? TryReadFailureReason(object? extras)
     {
         if (extras is null) return null;

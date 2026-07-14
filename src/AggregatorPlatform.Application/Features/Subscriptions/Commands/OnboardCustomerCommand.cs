@@ -129,12 +129,18 @@ public class OnboardCustomerCommandHandler : IRequestHandler<OnboardCustomerComm
                 $"Bank and wallet KYC differ on: {string.Join(", ", mismatches)}.");
 
         // 5) Link wallet <-> compte bancaire
+        // extras.activationKey = OTP wallet (requis par le connecteur WAVE).
         var partnerRef = $"ONBOARD-{Guid.NewGuid():N}";
+        var linkExtras = new Dictionary<string, object?>
+        {
+            ["activationKey"] = req.WalletTemporalyCode,
+            ["walletTemporalyCode"] = req.WalletTemporalyCode,
+        };
         WalletLinkResponse linkResp;
         try
         {
             linkResp = await walletConnector.LinkAsync(partner,
-                new WalletLinkRequest(req.PhoneNumber, partnerRef, req.BankAccount, null), ct);
+                new WalletLinkRequest(req.PhoneNumber, partnerRef, req.BankAccount, linkExtras), ct);
         }
         catch (Exception ex)
         {

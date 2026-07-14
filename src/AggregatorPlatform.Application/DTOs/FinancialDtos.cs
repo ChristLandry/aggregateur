@@ -68,11 +68,7 @@ public record TransactionRequest
 
 public record CancelTransactionRequest(string PartnerTransactionRef, string OriginalExternalRef);
 
-public record BalanceQueryRequest(Guid SubscriptionId);
-
 public record BalanceDto(string Identifier, decimal Balance, string Currency, string Status);
-
-public record KycDto(string Identifier, string FullName, string Status, string KycLevel);
 
 /// <summary>Requete de KYC wallet cote partenaire.</summary>
 /// <param name="PhoneNumber">Numero du wallet (obligatoire).</param>

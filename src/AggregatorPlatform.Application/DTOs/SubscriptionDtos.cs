@@ -2,35 +2,6 @@ using AggregatorPlatform.Domain.Enums;
 
 namespace AggregatorPlatform.Application.DTOs;
 
-public record CustomerDto(
-    Guid CustomerId,
-    string? ExternalCustomerId,
-    string FullName,
-    DateOnly DateOfBirth,
-    string? Email,
-    CustomerStatus Status,
-    KycStatus KycStatus,
-    DateTime CreatedAt);
-
-public record CreateCustomerRequest(
-    string? ExternalCustomerId,
-    string FullName,
-    DateOnly DateOfBirth,
-    string? NationalId,
-    string? Email);
-
-/// <summary>
-/// Payload PATCH partiel : seules les proprietes renseignees (non-null) sont
-/// appliquees a l'entite. Une valeur omise reste a null et la valeur existante
-/// en BD est preservee.
-/// </summary>
-public record UpdateCustomerRequest(
-    string? FullName,
-    DateOnly? DateOfBirth,
-    string? Email,
-    CustomerStatus? Status,
-    KycStatus? KycStatus);
-
 public record SubscriptionDto(
     Guid SubscriptionId,
     Guid CustomerId,

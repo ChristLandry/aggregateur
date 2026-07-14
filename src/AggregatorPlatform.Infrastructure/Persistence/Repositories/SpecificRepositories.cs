@@ -16,7 +16,9 @@ public class PartnerRepository : Repository<Partner>, IPartnerRepository
         => Set.Include(p => p.PartnerAccount).FirstOrDefaultAsync(p => p.PartnerId == partnerId, cancellationToken);
 
     public Task<Partner?> GetByApiKeyHashAsync(string apiKeyHash, CancellationToken cancellationToken = default)
-        => Set.Include(p => p.PartnerAccount).FirstOrDefaultAsync(p => p.ApiKey == apiKeyHash, cancellationToken);
+        // Pas d'Include PartnerAccount : un partenaire sans compte miroir (ex. WEB
+        // mal seed) serait sinon exclus par la relation 1-1 requise + query filters.
+        => Set.AsNoTracking().FirstOrDefaultAsync(p => p.ApiKey == apiKeyHash, cancellationToken);
 }
 
 public class CustomerRepository : Repository<Customer>, ICustomerRepository

@@ -13,6 +13,32 @@ public record GetPartnerAccountQuery(Guid PartnerId) : IRequest<Result<PartnerAc
 /// <summary>Renvoie uniquement le solde courant + devise.</summary>
 public record GetPartnerBalanceQuery(Guid PartnerId) : IRequest<Result<PartnerBalanceDto>>;
 
+/// <summary>
+/// Recupere la cle API en clair d'un partenaire. Endpoint sensible reserve
+/// aux roles Admin/SuperAdmin. Renvoie <c>API_KEY_UNAVAILABLE</c> si la valeur
+/// n'a pas ete persistee (cas des partenaires crees avant la migration
+/// AddPartnerApiKeyPlaintext) : dans ce cas, seule une rotation regenere la valeur.
+/// </summary>
+public record GetPartnerApiKeyQuery(Guid PartnerId) : IRequest<Result<RotateApiKeyResponse>>;
+
+public class GetPartnerApiKeyQueryHandler : IRequestHandler<GetPartnerApiKeyQuery, Result<RotateApiKeyResponse>>
+{
+    private readonly IPartnerRepository _partners;
+
+    public GetPartnerApiKeyQueryHandler(IPartnerRepository partners) => _partners = partners;
+
+    public async Task<Result<RotateApiKeyResponse>> Handle(GetPartnerApiKeyQuery request, CancellationToken cancellationToken)
+    {
+        var partner = await _partners.GetByIdAsync(request.PartnerId, cancellationToken);
+        if (partner is null)
+            return Result<RotateApiKeyResponse>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
+        if (string.IsNullOrWhiteSpace(partner.ApiKeyPlaintext))
+            return Result<RotateApiKeyResponse>.Failure("API_KEY_UNAVAILABLE",
+                "La cle en clair n'est pas disponible pour ce partenaire (cree avant la migration). Faire un rotate-key pour en regenerer une.");
+        return Result<RotateApiKeyResponse>.Success(new RotateApiKeyResponse(partner.PartnerId, partner.ApiKeyPlaintext));
+    }
+}
+
 public class GetPartnerByIdQueryHandler : IRequestHandler<GetPartnerByIdQuery, Result<PartnerDto>>
 {
     private readonly IPartnerRepository _partners;

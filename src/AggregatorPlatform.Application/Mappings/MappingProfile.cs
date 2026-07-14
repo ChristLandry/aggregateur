@@ -10,7 +10,6 @@ public class MappingProfile : Profile
     {
         CreateMap<Partner, PartnerDto>();
         CreateMap<PartnerAccount, PartnerAccountDto>();
-        CreateMap<Customer, CustomerDto>();
         CreateMap<Subscription, SubscriptionDto>();
         CreateMap<Transaction, TransactionDto>();
         CreateMap<AccountingSchema, AccountingSchemaDto>();

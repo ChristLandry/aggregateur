@@ -15,6 +15,9 @@ public class PartnerConfiguration : IEntityTypeConfiguration<Partner>
         b.Property(x => x.Name).IsRequired().HasMaxLength(200);
         b.Property(x => x.BaseUrl).IsRequired().HasMaxLength(500);
         b.Property(x => x.ApiKey).IsRequired().HasMaxLength(500);
+        // Cle API en clair chiffree AES-256 (comme les colonnes PII). Nullable.
+        b.Property(x => x.ApiKeyPlaintext).HasMaxLength(500)
+            .HasConversion(EncryptionValueConverter.ForNullableString());
         b.Property(x => x.AccountCode).HasMaxLength(50);
         b.Property(x => x.Currency).IsRequired().HasMaxLength(3);
         b.Property(x => x.WebhookUrl).HasMaxLength(500);
