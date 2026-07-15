@@ -1,0 +1,703 @@
+{
+  "info": {
+    "_postman_id": "d6f3a8e0-2a4c-4f0b-9a4e-aggregator2026",
+    "name": "AggregatorPlatform API",
+    "description": "Collection couvrant tous les endpoints du backend AggregatorPlatform.\n\nWorkflow recommande :\n  1. Auth > Login                    -> capture accessToken + refreshToken\n  2. Partners > Create partner       -> capture createdPartnerId + createdPartnerApiKey\n  3. Copier createdPartnerApiKey dans la variable d'env partnerApiKey\n  4. Partners > Change status        -> body {\"status\":1} pour activer\n  5. Accounting > Create schema      -> capture createdSchemaId\n  6. Partner-Endpoints > Create (x4) -> une entree par type (BankDebit/BankCredit/WalletDebit/WalletCredit)\n  7. Subscriptions > Onboard         -> cree Client + Customer + Subscription\n  8. Bank/Wallet endpoints           -> operations financieres\n\nAuth :\n  - X-Partner-ApiKey : partenaire (auto-inject via prerequest script)\n  - Bearer accessToken : admin JWT (auto via collection-level auth)\n\nNote /api/v1/bank/debit : le champ 'direction' est OBLIGATOIRE ('BTW' = debit vers wallet, 'WTB' = credit depuis wallet).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [ { "key": "token", "value": "{{accessToken}}", "type": "string" } ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-inject X-Partner-ApiKey si defini en env. Les endpoints qui n'en veulent pas ont 'disabled:true' sur le header.",
+          "const partnerApiKey = pm.environment.get('partnerApiKey');",
+          "const hasHeader = pm.request.headers.has('X-Partner-ApiKey');",
+          "if (partnerApiKey && !hasHeader) {",
+          "  pm.request.headers.add({ key: 'X-Partner-ApiKey', value: partnerApiKey });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [ { "key": "baseUrl", "value": "{{baseUrl}}" } ],
+  "item": [
+    {
+      "name": "Auth",
+      "description": "JWT login/refresh/logout. Le middleware /api/v1/auth/* bypass l'auth partenaire.",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","login"] },
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}", "options": {"raw":{"language":"json"}} }
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const json = pm.response.json();",
+            "if (json.success && json.data) {",
+            "  pm.environment.set('accessToken', json.data.accessToken);",
+            "  pm.environment.set('refreshToken', json.data.refreshToken);",
+            "}"
+          ] } } ]
+        },
+        {
+          "name": "Refresh",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","refresh"] },
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}", "options": {"raw":{"language":"json"}} }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/logout", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","logout"] },
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}", "options": {"raw":{"language":"json"}} }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Partners",
+      "description": "CRUD partenaires + rotate + get plain apiKey (Admin only) + solde.",
+      "item": [
+        {
+          "name": "List allowed partner codes",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partners/allowed-codes", "host": ["{{baseUrl}}"], "path": ["api","v1","partners","allowed-codes"] }
+          }
+        },
+        {
+          "name": "Create partner",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Partner-ApiKey", "value": "", "disabled": true }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partners", "host": ["{{baseUrl}}"], "path": ["api","v1","partners"] },
+            "body": { "mode": "raw", "raw": "{\n  \"partnerCode\": \"{{partnerCode}}\",\n  \"name\": \"Partenaire de test\",\n  \"baseUrl\": \"http://localhost:5080\",\n  \"currency\": \"XOF\",\n  \"partnerBankAccount\": \"{{partnerBankAccount}}\",\n  \"accountCode\": \"P-TEST\",\n  \"webhookUrl\": \"https://webhook.example.com/aggregator\",\n  \"ipWhitelist\": null,\n  \"contactEmail\": \"ops@partner.com\",\n  \"contactPhone\": \"+22507000000\",\n  \"lowBalanceThresholdPercent\": 20,\n  \"lowBalanceReferenceAmount\": 5000000,\n  \"alertChannels\": 3\n}", "options": {"raw":{"language":"json"}} },
+            "description": "AlertChannels : 0=None, 1=Email, 2=Sms, 3=EmailAndSms."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const json = pm.response.json();",
+            "if (json.success && json.data) {",
+            "  pm.environment.set('createdPartnerId', json.data.partnerId);",
+            "  pm.environment.set('createdPartnerCode', json.data.partnerCode);",
+            "  pm.environment.set('createdPartnerApiKey', json.data.apiKey);",
+            "  pm.environment.set('partnerId', json.data.partnerId);",
+            "  console.log('Copie createdPartnerApiKey dans partnerApiKey pour utiliser les endpoints partenaire.');",
+            "}"
+          ] } } ]
+        },
+        {
+          "name": "List partners",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partners", "host": ["{{baseUrl}}"], "path": ["api","v1","partners"] }
+          }
+        },
+        {
+          "name": "Get partner by id",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partners/{{createdPartnerId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","partners","{{createdPartnerId}}"] }
+          }
+        },
+        {
+          "name": "Update partner",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partners/{{createdPartnerId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","partners","{{createdPartnerId}}"] },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Partenaire MAJ\",\n  \"webhookUrl\": \"https://webhook.example.com/v2\",\n  \"lowBalanceThresholdPercent\": 15,\n  \"alertChannels\": 1\n}", "options": {"raw":{"language":"json"}} }
+          }
+        },
+        {
+          "name": "Change partner status",
+          "request": {
+            "method": "PATCH",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partners/{{createdPartnerId}}/status", "host": ["{{baseUrl}}"], "path": ["api","v1","partners","{{createdPartnerId}}","status"] },
+            "body": { "mode": "raw", "raw": "{\n  \"status\": 1\n}", "options": {"raw":{"language":"json"}} },
+            "description": "Status : 0=Inactive, 1=Active, 2=Suspended."
+          }
+        },
+        {
+          "name": "Rotate API key",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partners/{{createdPartnerId}}/rotate-key", "host": ["{{baseUrl}}"], "path": ["api","v1","partners","{{createdPartnerId}}","rotate-key"] },
+            "description": "Regenere une cle API et retourne le clair. Repopule aussi ApiKeyPlaintext."
+          }
+        },
+        {
+          "name": "Get partner API key (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partners/{{createdPartnerId}}/api-key", "host": ["{{baseUrl}}"], "path": ["api","v1","partners","{{createdPartnerId}}","api-key"] },
+            "description": "Recupere la cle API en clair (persistee chiffree AES-256). Admin/SuperAdmin only. Retourne API_KEY_UNAVAILABLE pour les partenaires crees avant la migration -> faire un rotate-key."
+          }
+        },
+        {
+          "name": "Get partner account",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partners/{{createdPartnerId}}/account", "host": ["{{baseUrl}}"], "path": ["api","v1","partners","{{createdPartnerId}}","account"] }
+          }
+        },
+        {
+          "name": "Get partner balance",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partners/{{createdPartnerId}}/balance", "host": ["{{baseUrl}}"], "path": ["api","v1","partners","{{createdPartnerId}}","balance"] }
+          }
+        },
+        {
+          "name": "Set partner balance (admin override)",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partners/{{createdPartnerId}}/balance", "host": ["{{baseUrl}}"], "path": ["api","v1","partners","{{createdPartnerId}}","balance"] },
+            "body": { "mode": "raw", "raw": "{\n  \"balance\": 5000000,\n  \"reason\": \"Ajustement manuel\"\n}", "options": {"raw":{"language":"json"}} }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Clients",
+      "description": "Vue racine des Clients (identite pivot). Admin JWT uniquement.",
+      "item": [
+        {
+          "name": "List clients",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/clients?take=500", "host": ["{{baseUrl}}"], "path": ["api","v1","clients"], "query": [ { "key": "take", "value": "500" } ] }
+          }
+        },
+        {
+          "name": "Get client by id",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/clients/{{clientId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","clients","{{clientId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscriptions",
+      "description": "Onboarding complet + creation directe + consultation.",
+      "item": [
+        {
+          "name": "Onboard customer (KYC compare + link + create)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions/onboard", "host": ["{{baseUrl}}"], "path": ["api","v1","subscriptions","onboard"] },
+            "body": { "mode": "raw", "raw": "{\n  \"bankAccount\": \"{{bankAccount}}\",\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"bankAccountRoot\": \"SN012-CLIENT-42\",\n  \"walletTemporalyCode\": \"OTP-{{$timestamp}}\",\n  \"partnerId\": \"{{partnerId}}\"\n}", "options": {"raw":{"language":"json"}} },
+            "description": "Bank KYC + Wallet KYC + comparaison (phone/dob/nationalId) + link + creation atomique Client/Customer/Subscription."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const json = pm.response.json();",
+            "if (json.success && json.data) {",
+            "  pm.environment.set('clientId', json.data.clientId);",
+            "  pm.environment.set('customerId', json.data.customerId);",
+            "  pm.environment.set('subscriptionId', json.data.subscriptionId);",
+            "}"
+          ] } } ]
+        },
+        {
+          "name": "Create subscription (direct)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions", "host": ["{{baseUrl}}"], "path": ["api","v1","subscriptions"] },
+            "body": { "mode": "raw", "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"bankAccountNumber\": \"SN01234568\",\n  \"phoneNumber\": \"+221771112244\",\n  \"phoneOperator\": \"Wave\",\n  \"expiresAt\": null\n}", "options": {"raw":{"language":"json"}} }
+          }
+        },
+        {
+          "name": "Get subscription by id",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions/{{subscriptionId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","subscriptions","{{subscriptionId}}"] }
+          }
+        },
+        {
+          "name": "List subscriptions of current partner",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subscriptions?partnerId=&subscribedAtDebut=&subscribedAtFin=&phoneNumber=&bankAccountNumber=&customerId=&phoneOperator=&status=1&take=5000",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","subscriptions"],
+              "query": [
+                { "key": "partnerId", "value": "" },
+                { "key": "subscribedAtDebut", "value": "" },
+                { "key": "subscribedAtFin", "value": "" },
+                { "key": "phoneNumber", "value": "" },
+                { "key": "bankAccountNumber", "value": "" },
+                { "key": "customerId", "value": "" },
+                { "key": "phoneOperator", "value": "" },
+                { "key": "status", "value": "1", "description": "0=Inactive, 1=Active (defaut), 2=Suspended, 3=Expired" },
+                { "key": "take", "value": "5000" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Change subscription status",
+          "request": {
+            "method": "PATCH",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/subscriptions/{{subscriptionId}}/status", "host": ["{{baseUrl}}"], "path": ["api","v1","subscriptions","{{subscriptionId}}","status"] },
+            "body": { "mode": "raw", "raw": "{\n  \"status\": 1\n}", "options": {"raw":{"language":"json"}} }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bank",
+      "description": "Endpoints /api/v1/bank/* — auth X-Partner-ApiKey. Balance, KYC (POST), debit (avec 'direction' obligatoire), credit.",
+      "item": [
+        {
+          "name": "Bank balance",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/bank/balance?subscriptionId={{subscriptionId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","bank","balance"], "query": [ { "key": "subscriptionId", "value": "{{subscriptionId}}" } ] }
+          }
+        },
+        {
+          "name": "Bank KYC",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/bank/kyc", "host": ["{{baseUrl}}"], "path": ["api","v1","bank","kyc"] },
+            "body": { "mode": "raw", "raw": "{\n  \"accountNumber\": \"{{bankAccount}}\",\n  \"partnerTemporalyCode\": \"KYC-{{$timestamp}}\",\n  \"extras\": {}\n}", "options": {"raw":{"language":"json"}} }
+          }
+        },
+        {
+          "name": "Bank debit (with direction BTW/WTB)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/bank/debit", "host": ["{{baseUrl}}"], "path": ["api","v1","bank","debit"] },
+            "body": { "mode": "raw", "raw": "{\n  \"partnerTransactionRef\": \"BANK-DEBIT-{{$timestamp}}\",\n  \"bankAccount\": \"{{bankAccount}}\",\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"subscriptionId\": \"{{subscriptionId}}\",\n  \"amount\": 5000,\n  \"fees\": null,\n  \"currency\": \"XOF\",\n  \"description\": \"Bank debit test\",\n  \"direction\": \"BTW\"\n}", "options": {"raw":{"language":"json"}} },
+            "description": "'direction' est OBLIGATOIRE : 'BTW' (Bank-to-Wallet = debit vers wallet) ou 'WTB' (Wallet-to-Bank = credit depuis wallet). Persiste dans Transaction.Direction."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const json = pm.response.json();",
+            "if (json.success && json.data) {",
+            "  pm.environment.set('createdTransactionId', json.data.transactionId);",
+            "  pm.environment.set('transactionId', json.data.transactionId);",
+            "  if (json.data.externalRef) pm.environment.set('externalRef', json.data.externalRef);",
+            "}"
+          ] } } ]
+        },
+        {
+          "name": "Bank debit - missing direction (should fail)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/bank/debit", "host": ["{{baseUrl}}"], "path": ["api","v1","bank","debit"] },
+            "body": { "mode": "raw", "raw": "{\n  \"partnerTransactionRef\": \"BANK-NODIR-{{$timestamp}}\",\n  \"bankAccount\": \"{{bankAccount}}\",\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"amount\": 1000,\n  \"currency\": \"XOF\"\n}", "options": {"raw":{"language":"json"}} },
+            "description": "Cas de test : direction absente -> VALIDATION_ERROR 'Direction est obligatoire pour /api/v1/bank/debit'."
+          }
+        },
+        {
+          "name": "Bank credit",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/bank/credit", "host": ["{{baseUrl}}"], "path": ["api","v1","bank","credit"] },
+            "body": { "mode": "raw", "raw": "{\n  \"partnerTransactionRef\": \"BANK-CREDIT-{{$timestamp}}\",\n  \"bankAccount\": \"{{bankAccount}}\",\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"subscriptionId\": \"{{subscriptionId}}\",\n  \"amount\": 10000,\n  \"currency\": \"XOF\",\n  \"description\": \"Bank credit test\"\n}", "options": {"raw":{"language":"json"}} }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Wallet",
+      "description": "Endpoints /api/v1/wallet/* — auth X-Partner-ApiKey. Balance, KYC (POST), debit, credit, cancel, link, unlink. /link renvoie une enveloppe a plat.",
+      "item": [
+        {
+          "name": "Wallet balance",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/wallet/balance?subscriptionId={{subscriptionId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","wallet","balance"], "query": [ { "key": "subscriptionId", "value": "{{subscriptionId}}" } ] }
+          }
+        },
+        {
+          "name": "Wallet KYC",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/wallet/kyc", "host": ["{{baseUrl}}"], "path": ["api","v1","wallet","kyc"] },
+            "body": { "mode": "raw", "raw": "{\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"partnerTemporalyCode\": \"OTP-{{$timestamp}}\",\n  \"extras\": {}\n}", "options": {"raw":{"language":"json"}} }
+          }
+        },
+        {
+          "name": "Wallet debit",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/wallet/debit", "host": ["{{baseUrl}}"], "path": ["api","v1","wallet","debit"] },
+            "body": { "mode": "raw", "raw": "{\n  \"partnerTransactionRef\": \"WAL-DEBIT-{{$timestamp}}\",\n  \"bankAccount\": \"{{bankAccount}}\",\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"subscriptionId\": \"{{subscriptionId}}\",\n  \"amount\": 2500,\n  \"currency\": \"XOF\",\n  \"description\": \"Wallet debit test\"\n}", "options": {"raw":{"language":"json"}} }
+          }
+        },
+        {
+          "name": "Wallet credit",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/wallet/credit", "host": ["{{baseUrl}}"], "path": ["api","v1","wallet","credit"] },
+            "body": { "mode": "raw", "raw": "{\n  \"partnerTransactionRef\": \"WAL-CREDIT-{{$timestamp}}\",\n  \"bankAccount\": \"{{bankAccount}}\",\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"subscriptionId\": \"{{subscriptionId}}\",\n  \"amount\": 7500,\n  \"currency\": \"XOF\",\n  \"description\": \"Wallet credit test\"\n}", "options": {"raw":{"language":"json"}} }
+          }
+        },
+        {
+          "name": "Wallet cancel",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/wallet/cancel", "host": ["{{baseUrl}}"], "path": ["api","v1","wallet","cancel"] },
+            "body": { "mode": "raw", "raw": "{\n  \"partnerTransactionRef\": \"WAL-CANCEL-{{$timestamp}}\",\n  \"originalExternalRef\": \"{{externalRef}}\"\n}", "options": {"raw":{"language":"json"}} }
+          }
+        },
+        {
+          "name": "Wallet link",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/wallet/link", "host": ["{{baseUrl}}"], "path": ["api","v1","wallet","link"] },
+            "body": { "mode": "raw", "raw": "{\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"partnerRef\": \"LINK-{{$timestamp}}\",\n  \"bankAccount\": \"{{bankAccount}}\",\n  \"extras\": { \"activationKey\": \"OTP-TEST\" }\n}", "options": {"raw":{"language":"json"}} },
+            "description": "Reponse a plat (WalletOperationEnvelope) : { success, transactionId, partnerTransactionRef, status, data, errorCode, errorMessage, timestamp }."
+          }
+        },
+        {
+          "name": "Wallet unlink",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/wallet/unlink", "host": ["{{baseUrl}}"], "path": ["api","v1","wallet","unlink"] },
+            "body": { "mode": "raw", "raw": "{\n  \"linkId\": null,\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"partnerRef\": \"UNLINK-{{$timestamp}}\"\n}", "options": {"raw":{"language":"json"}} }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Transactions",
+      "description": "Endpoints /api/v1/financial/transactions/* — auth JWT admin (Admin/SuperAdmin/Finance). Recherche paginee, detail, mouvements comptables.",
+      "item": [
+        {
+          "name": "Search transactions",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financial/transactions?fromDate=&toDate=&partnerId=&status=&bankAccount=&phoneNumber=&partnerTransactionRef=&type=&page=1&pageSize=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","financial","transactions"],
+              "query": [
+                { "key": "fromDate", "value": "" },
+                { "key": "toDate", "value": "" },
+                { "key": "partnerId", "value": "" },
+                { "key": "status", "value": "", "description": "0=Pending 1=Success 2=Failed 3=Cancelled 4=Reversed" },
+                { "key": "bankAccount", "value": "" },
+                { "key": "phoneNumber", "value": "" },
+                { "key": "partnerTransactionRef", "value": "" },
+                { "key": "type", "value": "", "description": "0=BankDebit 1=BankCredit 2=WalletDebit 3=WalletCredit 4=WalletCancel" },
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get transaction by id",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/financial/transactions/{{transactionId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","financial","transactions","{{transactionId}}"] }
+          }
+        },
+        {
+          "name": "Get movements of a transaction",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/financial/transactions/{{transactionId}}/movements", "host": ["{{baseUrl}}"], "path": ["api","v1","financial","transactions","{{transactionId}}","movements"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Accounting",
+      "description": "Schemas comptables + lignes. Admin JWT.",
+      "item": [
+        {
+          "name": "Create schema",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounting/schemas", "host": ["{{baseUrl}}"], "path": ["api","v1","accounting","schemas"] },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"BankDebit standard XOF\",\n  \"partnerId\": null,\n  \"transactionType\": 0,\n  \"transactionSide\": 0,\n  \"channel\": 0,\n  \"priority\": 100,\n  \"description\": \"Schema BankDebit\",\n  \"lines\": [\n    { \"lineOrder\": 1, \"accountCode\": \"411\", \"accountType\": 0, \"accountExpression\": null, \"side\": 0, \"amountFormula\": \"AMOUNT\", \"label\": \"Debit compte client\", \"code\": \"CLI\", \"exploitant\": \"AU\", \"isFee\": false, \"isConditional\": false, \"condition\": null },\n    { \"lineOrder\": 2, \"accountCode\": \"70-FEE\", \"accountType\": 0, \"accountExpression\": null, \"side\": 1, \"amountFormula\": \"AMOUNT * 0.05\", \"label\": \"Commission\", \"code\": \"FEE\", \"exploitant\": \"AU\", \"isFee\": true, \"isConditional\": false, \"condition\": null },\n    { \"lineOrder\": 3, \"accountCode\": \"707\", \"accountType\": 0, \"accountExpression\": null, \"side\": 1, \"amountFormula\": \"L1 - L2\", \"label\": \"Vente nette\", \"code\": \"INTEG\", \"exploitant\": \"AU\", \"isFee\": false, \"isConditional\": false, \"condition\": null }\n  ]\n}", "options": {"raw":{"language":"json"}} }
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const json = pm.response.json();",
+            "if (json.success && json.data) {",
+            "  pm.environment.set('createdSchemaId', json.data);",
+            "  pm.environment.set('schemaId', json.data);",
+            "}"
+          ] } } ]
+        },
+        {
+          "name": "List schemas",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounting/schemas", "host": ["{{baseUrl}}"], "path": ["api","v1","accounting","schemas"] }
+          }
+        },
+        {
+          "name": "Get schema by id",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounting/schemas/{{createdSchemaId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","accounting","schemas","{{createdSchemaId}}"] }
+          }
+        },
+        {
+          "name": "Update schema",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounting/schemas/{{createdSchemaId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","accounting","schemas","{{createdSchemaId}}"] },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"BankDebit MAJ\",\n  \"priority\": 110\n}", "options": {"raw":{"language":"json"}} }
+          }
+        },
+        {
+          "name": "Add line to schema",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounting/schemas/{{createdSchemaId}}/lines", "host": ["{{baseUrl}}"], "path": ["api","v1","accounting","schemas","{{createdSchemaId}}","lines"] },
+            "body": { "mode": "raw", "raw": "{\n  \"lineOrder\": 4,\n  \"accountCode\": \"70-EXTRA\",\n  \"accountType\": 0,\n  \"accountExpression\": null,\n  \"side\": 1,\n  \"amountFormula\": \"L2 * 0.1\",\n  \"label\": \"Bonus\",\n  \"code\": \"BONUS\",\n  \"exploitant\": \"AU\",\n  \"isFee\": false,\n  \"isConditional\": true,\n  \"condition\": \"L2 > 0\"\n}", "options": {"raw":{"language":"json"}} }
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const json = pm.response.json();",
+            "if (json.success && json.data) { pm.environment.set('createdLineId', json.data); }"
+          ] } } ]
+        },
+        {
+          "name": "Add line - duplicate order (should fail)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounting/schemas/{{createdSchemaId}}/lines", "host": ["{{baseUrl}}"], "path": ["api","v1","accounting","schemas","{{createdSchemaId}}","lines"] },
+            "body": { "mode": "raw", "raw": "{\n  \"lineOrder\": 1,\n  \"accountCode\": \"411\",\n  \"accountType\": 0,\n  \"side\": 0,\n  \"amountFormula\": \"AMOUNT\",\n  \"label\": \"Doublon d'ordre\",\n  \"code\": \"DUP\",\n  \"exploitant\": \"AU\",\n  \"isFee\": false,\n  \"isConditional\": false,\n  \"condition\": null\n}", "options": {"raw":{"language":"json"}} },
+            "description": "Cas de test : LineOrder=1 deja pris -> LINE_ORDER_DUPLICATE."
+          }
+        },
+        {
+          "name": "Update schema line",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounting/schemas/{{createdSchemaId}}/lines/{{createdLineId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","accounting","schemas","{{createdSchemaId}}","lines","{{createdLineId}}"] },
+            "body": { "mode": "raw", "raw": "{\n  \"lineOrder\": 4,\n  \"accountCode\": \"70-EXTRA\",\n  \"accountType\": 0,\n  \"accountExpression\": null,\n  \"side\": 1,\n  \"amountFormula\": \"L2 * 0.15\",\n  \"label\": \"Bonus MAJ\",\n  \"code\": \"BONUS\",\n  \"exploitant\": \"AU\",\n  \"isFee\": false,\n  \"isConditional\": true,\n  \"condition\": \"L2 > 0\"\n}", "options": {"raw":{"language":"json"}} }
+          }
+        },
+        {
+          "name": "Remove line from schema",
+          "request": {
+            "method": "DELETE",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounting/schemas/{{createdSchemaId}}/lines/{{createdLineId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","accounting","schemas","{{createdSchemaId}}","lines","{{createdLineId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Partner-Endpoints",
+      "description": "Configuration des types d'operations autorisees par partenaire (BankDebit=0, BankCredit=1, WalletDebit=2, WalletCredit=3) + schema comptable attache.",
+      "item": [
+        {
+          "name": "Create partner-endpoint link",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partner-endpoints", "host": ["{{baseUrl}}"], "path": ["api","v1","partner-endpoints"] },
+            "body": { "mode": "raw", "raw": "{\n  \"partnerId\": \"{{createdPartnerId}}\",\n  \"endpointKey\": 0,\n  \"schemaId\": \"{{createdSchemaId}}\"\n}", "options": {"raw":{"language":"json"}} },
+            "description": "endpointKey : 0=BankDebit 1=BankCredit 2=WalletDebit 3=WalletCredit."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const json = pm.response.json();",
+            "if (json.success && json.data) { pm.environment.set('createdPartnerEndpointId', json.data); }"
+          ] } } ]
+        },
+        {
+          "name": "List partner-endpoints",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partner-endpoints?partnerId={{createdPartnerId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","partner-endpoints"], "query": [ { "key": "partnerId", "value": "{{createdPartnerId}}" } ] }
+          }
+        },
+        {
+          "name": "Get partner-endpoint by id",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partner-endpoints/{{createdPartnerEndpointId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","partner-endpoints","{{createdPartnerEndpointId}}"] }
+          }
+        },
+        {
+          "name": "Attach/replace schema",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partner-endpoints/{{createdPartnerEndpointId}}/schema", "host": ["{{baseUrl}}"], "path": ["api","v1","partner-endpoints","{{createdPartnerEndpointId}}","schema"] },
+            "body": { "mode": "raw", "raw": "{\n  \"schemaId\": \"{{createdSchemaId}}\"\n}", "options": {"raw":{"language":"json"}} }
+          }
+        },
+        {
+          "name": "Detach schema",
+          "request": {
+            "method": "DELETE",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partner-endpoints/{{createdPartnerEndpointId}}/schema", "host": ["{{baseUrl}}"], "path": ["api","v1","partner-endpoints","{{createdPartnerEndpointId}}","schema"] }
+          }
+        },
+        {
+          "name": "Delete partner-endpoint link",
+          "request": {
+            "method": "DELETE",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/partner-endpoints/{{createdPartnerEndpointId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","partner-endpoints","{{createdPartnerEndpointId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "description": "Vues de synthese admin. JWT.",
+      "item": [
+        {
+          "name": "Admin summary",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/dashboard/summary", "host": ["{{baseUrl}}"], "path": ["api","v1","dashboard","summary"] }
+          }
+        },
+        {
+          "name": "Partner summary",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/dashboard/partners/{{createdPartnerId}}/summary", "host": ["{{baseUrl}}"], "path": ["api","v1","dashboard","partners","{{createdPartnerId}}","summary"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "description": "Rapports admin JWT.",
+      "item": [
+        {
+          "name": "Transactions report",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/reports/transactions?partnerId={{createdPartnerId}}&fromDate=2026-01-01&toDate=2026-12-31&status=", "host": ["{{baseUrl}}"], "path": ["api","v1","reports","transactions"], "query": [ { "key": "partnerId", "value": "{{createdPartnerId}}" }, { "key": "fromDate", "value": "2026-01-01" }, { "key": "toDate", "value": "2026-12-31" }, { "key": "status", "value": "" } ] }
+          }
+        },
+        {
+          "name": "Subscriptions report",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/reports/subscriptions?partnerId={{createdPartnerId}}&status=", "host": ["{{baseUrl}}"], "path": ["api","v1","reports","subscriptions"], "query": [ { "key": "partnerId", "value": "{{createdPartnerId}}" }, { "key": "status", "value": "" } ] }
+          }
+        },
+        {
+          "name": "Failure analysis",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/reports/failure-analysis?fromDate=2026-01-01&toDate=2026-12-31", "host": ["{{baseUrl}}"], "path": ["api","v1","reports","failure-analysis"], "query": [ { "key": "fromDate", "value": "2026-01-01" }, { "key": "toDate", "value": "2026-12-31" } ] }
+          }
+        },
+        {
+          "name": "Accounting report",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/reports/accounting?fromDate=2026-01-01&toDate=2026-12-31", "host": ["{{baseUrl}}"], "path": ["api","v1","reports","accounting"], "query": [ { "key": "fromDate", "value": "2026-01-01" }, { "key": "toDate", "value": "2026-12-31" } ] }
+          }
+        },
+        {
+          "name": "Partner account statement",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/api/v1/reports/partner-account-statement?partnerId={{createdPartnerId}}&fromDate=2026-01-01&toDate=2026-12-31", "host": ["{{baseUrl}}"], "path": ["api","v1","reports","partner-account-statement"], "query": [ { "key": "partnerId", "value": "{{createdPartnerId}}" }, { "key": "fromDate", "value": "2026-01-01" }, { "key": "toDate", "value": "2026-12-31" } ] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "System",
+      "description": "Health, metrics, swagger.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "Metrics",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/metrics", "host": ["{{baseUrl}}"], "path": ["metrics"] }
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "text/html" }, { "key": "X-Partner-ApiKey", "value": "", "disabled": true } ],
+            "url": { "raw": "{{baseUrl}}/swagger", "host": ["{{baseUrl}}"], "path": ["swagger"] }
+          }
+        }
+      ]
+    }
+  ]
+}

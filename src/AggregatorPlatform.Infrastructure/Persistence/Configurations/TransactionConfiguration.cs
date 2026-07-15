@@ -19,6 +19,7 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         b.Property(x => x.TransactionType).HasConversion<int>();
         b.Property(x => x.Status).HasConversion<int>();
         b.Property(x => x.AccountingStatus).HasConversion<int>();
+        b.Property(x => x.OperationType).HasMaxLength(3);
         b.Property(x => x.FailureReason).HasMaxLength(500);
         b.Property(x => x.ExternalRef).HasMaxLength(200);
 

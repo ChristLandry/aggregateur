@@ -1,6 +1,8 @@
 using System.Text.Json;
 using AggregatorPlatform.Domain.Enums;
 
+// Direction (BTW/WTB) importee via using ci-dessus.
+
 namespace AggregatorPlatform.Application.DTOs;
 
 public record TransactionDto(
@@ -22,7 +24,8 @@ public record TransactionDto(
     string? ExternalRef,
     string? BankAccount,
     string? PhoneNumber,
-    string? ExtraData);
+    string? ExtraData,
+    string? OperationType);
 
 /// <summary>
 /// Payload generique d'initiation d'une transaction (debit/credit, bank/wallet).
@@ -64,6 +67,12 @@ public record TransactionRequest
 
     /// <summary>Donnees additionnelles libres serialisees en JSON (optionnel).</summary>
     public JsonElement? ExtraData { get; init; }
+
+    /// <summary>
+    /// OperationType : type d'operation bancaire (BTW ou WTB). 
+    /// Valeur optionnelle ; renseignee uniquement pour les transactions initiees via /api/v1/bank/debit.
+    /// </summary>
+    public string? OperationType { get; init; }
 }
 
 public record CancelTransactionRequest(string PartnerTransactionRef, string OriginalExternalRef);

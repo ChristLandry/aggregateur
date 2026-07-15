@@ -86,7 +86,6 @@ public class PartnerAuthMiddlewareTests
                 BaseUrl = "https://api.partner.com",
                 ApiKey = TestApiKeyHash,
                 Status = PartnerStatus.Inactive,
-                RateLimitPerMin = 100
             });
 
         var ctx = BuildContext("/api/v1/financial/bank/balance",
@@ -94,31 +93,6 @@ public class PartnerAuthMiddlewareTests
 
         await mw.Invoke(ctx, partners.Object, cache.Object, enc.Object);
         ctx.Response.StatusCode.Should().Be(401);
-        nextCalled[0].Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task Returns_429_when_rate_limit_exceeded()
-    {
-        var (mw, partners, cache, enc, nextCalled) = Build();
-        var partnerId = Guid.NewGuid();
-        partners.Setup(p => p.GetByApiKeyHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Partner
-            {
-                PartnerId = partnerId,
-                BaseUrl = "https://api.partner.com",
-                ApiKey = TestApiKeyHash,
-                Status = PartnerStatus.Active,
-                RateLimitPerMin = 5
-            });
-        cache.Setup(r => r.IncrementAsync(It.IsAny<string>(), It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(6);
-
-        var ctx = BuildContext("/api/v1/financial/bank/balance",
-            headers: new Dictionary<string, string> { ["X-Partner-ApiKey"] = TestApiKey });
-
-        await mw.Invoke(ctx, partners.Object, cache.Object, enc.Object);
-        ctx.Response.StatusCode.Should().Be(429);
         nextCalled[0].Should().BeFalse();
     }
 

@@ -42,6 +42,12 @@ public class Transaction : AuditableEntity
     /// <summary>Donnees libres serialisees JSON (origine canal, metadata partenaire, etc.).</summary>
     public string? ExtraData { get; set; }
 
+    /// <summary>
+    /// OperationType de la transaction bancaire : BTW (debit vers wallet) ou WTB (credit depuis wallet).
+    /// Nullable : renseigne uniquement pour les transactions initiees via /api/v1/bank/debit.
+    /// </summary>
+    public string? OperationType { get; set; }
+
     public Partner? Partner { get; set; }
     public Subscription? Subscription { get; set; }
     public Customer? Customer { get; set; }

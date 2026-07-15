@@ -66,7 +66,11 @@ public class WalletDebitCommandHandler : FinancialBaseHandler, IRequestHandler<W
             await FinalizeAsync(tx, null, false, ex.Message, cancellationToken);
         }
 
-        return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
+        // Retourner Success ou Failure selon le statut réel de la transaction
+        if (tx.Status == TransactionStatus.Success)
+            return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
+
+        return Result<TransactionDto>.Failure(tx.FailureReason ?? "Transaction failed", "TRANSACTION_FAILED");
     }
 }
 
@@ -126,7 +130,11 @@ public class WalletCreditCommandHandler : FinancialBaseHandler, IRequestHandler<
             await FinalizeAsync(tx, null, false, ex.Message, cancellationToken);
         }
 
-        return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
+        // Retourner Success ou Failure selon le statut réel de la transaction
+        if (tx.Status == TransactionStatus.Success)
+            return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
+
+        return Result<TransactionDto>.Failure(tx.FailureReason ?? "Transaction failed", "TRANSACTION_FAILED");
     }
 }
 
@@ -205,6 +213,10 @@ public class WalletCancelCommandHandler : FinancialBaseHandler, IRequestHandler<
             await FinalizeAsync(tx, null, false, ex.Message, cancellationToken);
         }
 
-        return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
+        // Retourner Success ou Failure selon le statut réel de la transaction
+        if (tx.Status == TransactionStatus.Success)
+            return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
+
+        return Result<TransactionDto>.Failure(tx.FailureReason ?? "Transaction failed", "TRANSACTION_FAILED");
     }
 }

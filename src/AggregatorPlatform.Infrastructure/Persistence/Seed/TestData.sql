@@ -18,14 +18,14 @@ SET ANSI_NULLS ON;
 IF NOT EXISTS (SELECT 1 FROM Partners WHERE PartnerId = '11111111-1111-1111-1111-111111111111')
 BEGIN
     INSERT INTO Partners (PartnerId, PartnerCode, Name, BaseUrl, ApiKey, AccountCode, Status, Currency,
-                          WebhookUrl, RateLimitPerMin, IpWhitelist, RequireHmac, CreatedAt, IsDeleted)
+                          WebhookUrl, IpWhitelist, CreatedAt, IsDeleted)
     VALUES (
         '11111111-1111-1111-1111-111111111111',
         'BANK_DEMO', N'Banque Demo SA', 'http://localhost:5080',
         '8e3a4ee5e2e5e1e6d7f8a9b0c1d2e3f405a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0',
         'P-BANK_DEMO', 1, 'XOF',
         'https://webhook.bank-demo.local/aggregator',
-        500, NULL, 0, GETUTCDATE(), 0);
+        NULL, GETUTCDATE(), 0);
 
     INSERT INTO PartnerAccounts (AccountId, PartnerId, PartnerBankAccount, Balance, Currency, CreatedAt, IsDeleted)
     VALUES (NEWID(), '11111111-1111-1111-1111-111111111111', '0101010101010', 5000000, 'XOF', GETUTCDATE(), 0);
@@ -34,14 +34,14 @@ END
 IF NOT EXISTS (SELECT 1 FROM Partners WHERE PartnerId = '22222222-2222-2222-2222-222222222222')
 BEGIN
     INSERT INTO Partners (PartnerId, PartnerCode, Name, BaseUrl, ApiKey, AccountCode, Status, Currency,
-                          WebhookUrl, RateLimitPerMin, IpWhitelist, RequireHmac, CreatedAt, IsDeleted)
+                          WebhookUrl, IpWhitelist, CreatedAt, IsDeleted)
     VALUES (
         '22222222-2222-2222-2222-222222222222',
         'WALLET_DEMO', N'Wallet Demo (Orange Money)', 'http://localhost:5080',
         '9f4b5ff6f3f6f2f7e8f9b0c1d2e3f4a5b607c8d9e0f1a2b3c4d5e6f7a8b9c0d1',
         'P-WALLET_DEMO', 1, 'XOF',
         'https://webhook.wallet-demo.local/aggregator',
-        1000, NULL, 0, GETUTCDATE(), 0);
+        NULL, GETUTCDATE(), 0);
 
     INSERT INTO PartnerAccounts (AccountId, PartnerId, PartnerBankAccount, Balance, Currency, CreatedAt, IsDeleted)
     VALUES (NEWID(), '22222222-2222-2222-2222-222222222222', '0202020202020', 3000000, 'XOF', GETUTCDATE(), 0);

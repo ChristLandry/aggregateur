@@ -51,7 +51,7 @@ public class WaveConnectorHttpClient : IWaveConnectorClient
         CancellationToken cancellationToken = default)
     {
         var client = CreateClient(partner);
-        var url = BuildUrl(partner, "/api/wave/linked_account/kyc");
+        var url = BuildUrl(partner, "/api/partner/kyc");
         var body = new { alias, walletTemporalyCode, extras };
         using var response = await client.PostAsJsonAsync(url, body, JsonOpts, cancellationToken);
         await EnsureSuccessOrThrowAsync(response, "kyc", cancellationToken);
@@ -74,7 +74,7 @@ public class WaveConnectorHttpClient : IWaveConnectorClient
         merged["activationKey"] = activationKey;
 
         var client = CreateClient(partner);
-        var url = BuildUrl(partner, "/api/wave/linked_account/link");
+        var url = BuildUrl(partner, "/api/partner/link");
         var body = new { bankAccount, alias, extras = merged };
         using var response = await client.PostAsJsonAsync(url, body, JsonOpts, cancellationToken);
         await EnsureSuccessOrThrowAsync(response, "link", cancellationToken);
@@ -90,7 +90,7 @@ public class WaveConnectorHttpClient : IWaveConnectorClient
         CancellationToken cancellationToken = default)
     {
         var client = CreateClient(partner);
-        var url = BuildUrl(partner, "/api/wave/linked_account/unlink");
+        var url = BuildUrl(partner, "/api/partner/unlink");
         var body = new { bankAccount, alias, extras };
         using var response = await client.PostAsJsonAsync(url, body, JsonOpts, cancellationToken);
         await EnsureSuccessOrThrowAsync(response, "unlink", cancellationToken);

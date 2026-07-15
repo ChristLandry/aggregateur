@@ -14,7 +14,16 @@ public record BankDebitCommand(Guid PartnerId, TransactionRequest Request) : IRe
 
 public class BankDebitValidator : AbstractValidator<BankDebitCommand>
 {
-    public BankDebitValidator() => RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
+    public BankDebitValidator()
+    {
+        RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
+        // OperationType est obligatoire et doit etre BTW ou WTB.
+        RuleFor(x => x.Request.OperationType)
+            .NotEmpty()
+            .WithMessage("OperationType est obligatoire pour /api/v1/bank/debit.")
+            .Must(op => op == "BTW" || op == "WTB")
+            .WithMessage("OperationType doit etre 'BTW' (debit vers wallet) ou 'WTB' (credit depuis wallet).");
+    }
 }
 
 public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<BankDebitCommand, Result<TransactionDto>>
@@ -48,6 +57,8 @@ public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<Ban
             return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
 
         var tx = BuildTransaction(request.Request, sub, request.PartnerId, TransactionType.BankDebit);
+        // Persiste OperationType (déjà validée par le validator : BTW ou WTB).
+        tx.OperationType = request.Request.OperationType;
 
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
@@ -67,7 +78,11 @@ public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<Ban
             await FinalizeAsync(tx, null, false, ex.Message, cancellationToken);
         }
 
-        return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
+        // Retourner Success ou Failure selon le statut réel de la transaction
+        if (tx.Status == TransactionStatus.Success)
+            return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
+
+        return Result<TransactionDto>.Failure(tx.FailureReason ?? "Transaction failed", "TRANSACTION_FAILED");
     }
 }
 
@@ -108,6 +123,9 @@ public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<Ba
 
         var tx = BuildTransaction(request.Request, sub, request.PartnerId, TransactionType.BankCredit);
 
+        // Persiste OperationType si fourni.
+        tx.OperationType = request.Request.OperationType;
+
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
 
@@ -126,6 +144,10 @@ public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<Ba
             await FinalizeAsync(tx, null, false, ex.Message, cancellationToken);
         }
 
-        return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
+        // Retourner Success ou Failure selon le statut réel de la transaction
+        if (tx.Status == TransactionStatus.Success)
+            return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
+
+        return Result<TransactionDto>.Failure(tx.FailureReason ?? "Transaction failed", "TRANSACTION_FAILED");
     }
 }

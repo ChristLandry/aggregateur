@@ -94,13 +94,21 @@ public abstract class FinancialBaseHandler
 
     protected async Task<Result<TransactionDto>?> CheckIdempotenceAsync(Guid partnerId, string partnerRef, CancellationToken ct)
     {
-        var existing = await Transactions.GetByPartnerRefAsync(partnerId, partnerRef, ct);
-        if (existing is not null)
+        try
         {
-            Logger.LogInformation("Idempotent hit: partner {Partner} ref {Ref}", partnerId, partnerRef);
-            return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(existing));
+            var existing = await Transactions.GetByPartnerRefAsync(partnerId, partnerRef, ct);
+            if (existing is not null)
+            {
+                Logger.LogInformation("Idempotent hit: partner {Partner} ref {Ref}", partnerId, partnerRef);
+                return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(existing));
+            }
+            return null;
         }
-        return null;
+        catch (Exception ex)
+        {
+            Logger.LogError("Idempotent hit: partner {Partner} exception {ex}", partnerId, ex);
+            throw;
+        }
     }
 
     protected async Task<(Subscription? Subscription, string? ErrorCode)> ResolveSubscriptionAsync(
