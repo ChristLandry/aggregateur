@@ -93,6 +93,10 @@ public static class DependencyInjection
         services.AddHostedService<ReconciliationJob>();
         services.AddHostedService<WebhookDispatchJob>();
 
+        // One-shot au demarrage : dechiffrer les valeurs BankAccount/PhoneNumber
+        // laissees chiffrees par les versions precedentes (idempotent).
+        services.AddHostedService<Persistence.DecryptLegacySensitiveColumnsHostedService>();
+
         return services;
     }
 

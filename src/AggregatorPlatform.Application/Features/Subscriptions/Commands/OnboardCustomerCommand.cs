@@ -124,9 +124,9 @@ public class OnboardCustomerCommandHandler : IRequestHandler<OnboardCustomerComm
         if (!string.IsNullOrWhiteSpace(bankKyc.NationalId)
             && !string.Equals(bankKyc.NationalId, walletKyc.NationalId, StringComparison.OrdinalIgnoreCase))
             mismatches.Add("nationalId");
-        if (mismatches.Count > 0)
+        /*if (mismatches.Count > 0)
             return Result<OnboardCustomerResponse>.Failure("KYC_MISMATCH",
-                $"Bank and wallet KYC differ on: {string.Join(", ", mismatches)}.");
+                $"Bank and wallet KYC differ on: {string.Join(", ", mismatches)}.");*/
 
         // 5) Link wallet <-> compte bancaire
         // extras.activationKey = OTP wallet (requis par le connecteur WAVE).

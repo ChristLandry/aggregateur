@@ -23,13 +23,10 @@ public class TransactionConfiguration : IEntityTypeConfiguration<Transaction>
         b.Property(x => x.FailureReason).HasMaxLength(500);
         b.Property(x => x.ExternalRef).HasMaxLength(200);
 
-        // Champs ajoutes au payload : chiffres au repos
-        b.Property(x => x.BankAccount)
-            .HasMaxLength(500)
-            .HasConversion(EncryptionValueConverter.ForNullableString());
-        b.Property(x => x.PhoneNumber)
-            .HasMaxLength(500)
-            .HasConversion(EncryptionValueConverter.ForNullableString());
+        // BankAccount et PhoneNumber stockes en clair (identifiants metier).
+        // MaxLength(500) conserve pour ne pas alterer la colonne existante.
+        b.Property(x => x.BankAccount).HasMaxLength(500);
+        b.Property(x => x.PhoneNumber).HasMaxLength(500);
         b.Property(x => x.ExtraData)
             .HasColumnType("nvarchar(max)");
 

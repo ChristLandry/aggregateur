@@ -20,8 +20,8 @@ public class ClientConfiguration : IEntityTypeConfiguration<Client>
         b.Property(x => x.FullName).IsRequired().HasMaxLength(300);
         b.Property(x => x.NationalId).HasMaxLength(500)
             .HasConversion(EncryptionValueConverter.ForNullableString());
-        b.Property(x => x.PhoneNumber).HasMaxLength(500)
-            .HasConversion(EncryptionValueConverter.ForNullableString());
+        // PhoneNumber stocke en clair (identifiant metier). NationalId reste chiffre.
+        b.Property(x => x.PhoneNumber).HasMaxLength(500);
         b.Property(x => x.Email).HasMaxLength(200);
         b.HasQueryFilter(x => !x.IsDeleted);
     }
@@ -57,12 +57,14 @@ public class SubscriptionConfiguration : IEntityTypeConfiguration<Subscription>
     {
         b.ToTable("Subscriptions");
         b.HasKey(x => x.SubscriptionId);
+        // BankAccount et PhoneNumber sont stockes en clair : leur valeur sert
+        // d'identifiant metier (lookup par phone+bank, unicite du triplet). MaxLength(500)
+        // conserve pour eviter une alteration de colonne et couvrir les valeurs
+        // dechiffrees issues de l'historique via DecryptLegacySubscriptionColumnsHostedService.
         b.Property(x => x.BankAccount)
             .HasColumnName("BankAccountNumber")
-            .IsRequired().HasMaxLength(500)
-            .HasConversion(EncryptionValueConverter.ForString());
-        b.Property(x => x.PhoneNumber).IsRequired().HasMaxLength(500)
-            .HasConversion(EncryptionValueConverter.ForString());
+            .IsRequired().HasMaxLength(500);
+        b.Property(x => x.PhoneNumber).IsRequired().HasMaxLength(500);
         b.Property(x => x.PhoneOperator).IsRequired().HasMaxLength(50);
         b.Property(x => x.Status).HasConversion<int>();
 
