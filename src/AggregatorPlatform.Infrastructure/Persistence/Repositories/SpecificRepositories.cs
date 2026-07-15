@@ -54,6 +54,11 @@ public class SubscriptionRepository : Repository<Subscription>, ISubscriptionRep
             s.PhoneNumber == phoneNumber,
             cancellationToken);
 
+    // PhoneNumber + BankAccount sont chiffres au repos via EncryptionValueConverter
+    // (AES-256 avec IV fixe -> deterministe). EF Core applique automatiquement
+    // le ValueConverter au parametre : le SQL genere compare ciphertext-vs-ciphertext,
+    // et l'egalite reste vraie parce que Encrypt(x) == Encrypt(y) ssi x == y.
+    // Pas de decryptage cote client (fetch complet inutile + fuite plaintext).
     public Task<Subscription?> GetActiveSubscriptionByPartnerAndContactAsync(Guid partnerId, string phoneNumber, string bankAccount, CancellationToken cancellationToken = default)
         => Set.FirstOrDefaultAsync(s =>
             s.PartnerId == partnerId &&
