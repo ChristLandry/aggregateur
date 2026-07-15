@@ -8,7 +8,7 @@ public class Subscription : AuditableEntity
     public Guid SubscriptionId { get; set; } = Guid.NewGuid();
     public Guid CustomerId { get; set; }
     public Guid PartnerId { get; set; }
-    public string BankAccountNumber { get; set; } = string.Empty;
+    public string BankAccount { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public string PhoneOperator { get; set; } = string.Empty;
     public SubscriptionStatus Status { get; set; } = SubscriptionStatus.Active;

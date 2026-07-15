@@ -191,7 +191,7 @@ public class OnboardCustomerCommandHandler : IRequestHandler<OnboardCustomerComm
         {
             CustomerId = customer.CustomerId,
             PartnerId = partner.PartnerId,
-            BankAccountNumber = req.BankAccount,
+            BankAccount = req.BankAccount,
             PhoneNumber = req.PhoneNumber,
             PhoneOperator = partner.PartnerCode,
             Status = SubscriptionStatus.Active,

@@ -26,11 +26,11 @@ public class BankApiClient : IBankApiClient
         return client;
     }
 
-    public async Task<BankBalanceResponse> GetBalanceAsync(Partner partner, string accountNumber, CancellationToken cancellationToken = default)
+    public async Task<BankBalanceResponse> GetBalanceAsync(Partner partner, string phoneNumber, CancellationToken cancellationToken = default)
     {
         var client = CreateClient(partner);
-        var resp = await client.GetFromJsonAsync<BankBalanceResponse>($"/bank/balance?account={Uri.EscapeDataString(accountNumber)}", cancellationToken);
-        return resp ?? new BankBalanceResponse(accountNumber, 0, partner.Currency, "UNKNOWN");
+        var resp = await client.GetFromJsonAsync<BankBalanceResponse>($"/bank/balance?phone={Uri.EscapeDataString(phoneNumber)}", cancellationToken);
+        return resp ?? new BankBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
     }
 
     public async Task<BankKycDto> GetKycAsync(Partner partner, BankKycRequest request, CancellationToken cancellationToken = default)
@@ -40,12 +40,12 @@ public class BankApiClient : IBankApiClient
         {
             var response = await client.PostAsJsonAsync("/bank/kyc", request, cancellationToken);
             var body = await response.Content.ReadFromJsonAsync<BankKycDto>(cancellationToken: cancellationToken);
-            return body ?? new BankKycDto(request.AccountNumber, string.Empty, null, null, null);
+            return body ?? new BankKycDto(request.PhoneNumber, string.Empty, null, null);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Bank KYC failed for partner {PartnerId} account {Account}", partner.PartnerId, request.AccountNumber);
-            return new BankKycDto(request.AccountNumber, string.Empty, null, null, null);
+            _logger.LogError(ex, "Bank KYC failed for partner {PartnerId} phone {Phone}", partner.PartnerId, request.PhoneNumber);
+            return new BankKycDto(request.PhoneNumber, string.Empty, null, null);
         }
     }
 

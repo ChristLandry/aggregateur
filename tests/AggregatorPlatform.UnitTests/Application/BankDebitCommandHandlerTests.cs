@@ -36,101 +36,107 @@ public class BankDebitCommandHandlerTests
         var uow = new Mock<IUnitOfWork>();
         var webhooks = new Mock<IWebhookService>();
         var partnerEndpoints = new Mock<IPartnerEndpointRepository>();
-        // Par defaut : partenaire eligible avec schema attache (pour ne pas bloquer les tests legacy).
         partnerEndpoints
-            .Setup(p => p.GetByPartnerAndKeyAsync(It.IsAny<Guid>(), It.IsAny<AggregatorPlatform.Domain.Enums.FinancialEndpointKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Guid pid, AggregatorPlatform.Domain.Enums.FinancialEndpointKey k, CancellationToken _) =>
+            .Setup(p => p.GetByPartnerAndKeyAsync(It.IsAny<Guid>(), It.IsAny<FinancialEndpointKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid pid, FinancialEndpointKey k, CancellationToken _) =>
                 new PartnerEndpoint { PartnerId = pid, EndpointKey = k, SchemaId = Guid.NewGuid() });
         return new BankDebitCommandHandler(txs.Object, subs.Object, partners.Object, partnerEndpoints.Object,
             uow.Object, accounting.Object, webhooks.Object, BuildMapper(),
             NullLogger<BankDebitCommandHandler>.Instance, bank.Object);
     }
 
-    [Fact]
-    public async Task Returns_existing_transaction_when_idempotent_hit()
-    {
-        var handler = BuildHandler(out var txs, out _, out _, out _, out _);
-        var partnerId = Guid.NewGuid();
-        var existing = new Transaction
+    private static BankTransactionInitiateRequest MakeReq(string @ref = "REF", string phone = "+22177", string bank = "ACC123") =>
+        new()
         {
-            TransactionId = Guid.NewGuid(),
-            PartnerId = partnerId,
-            PartnerTransactionRef = "ABC",
+            PartnerTransactionRef = @ref,
+            PhoneNumber = phone,
+            BankAccount = bank,
             Amount = 1000,
-            NetAmount = 950,
             Currency = "XOF",
-            Status = TransactionStatus.Success,
-            TransactionType = TransactionType.BankDebit
+            OperationType = "BTW",
         };
+
+    [Fact]
+    public async Task Fails_when_partner_transaction_ref_already_exists()
+    {
+        var handler = BuildHandler(out var txs, out _, out var partners, out _, out _);
+        var partnerId = Guid.NewGuid();
+        partners.Setup(x => x.GetByIdAsync(partnerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Partner { PartnerId = partnerId, Status = PartnerStatus.Active, ApiKey = "hashed-key" });
         txs.Setup(x => x.GetByPartnerRefAsync(partnerId, "ABC", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(existing);
+            .ReturnsAsync(new Transaction
+            {
+                TransactionId = Guid.NewGuid(),
+                PartnerId = partnerId,
+                PartnerTransactionRef = "ABC",
+                Amount = 1000,
+                Currency = "XOF",
+                Status = TransactionStatus.Success,
+                TransactionType = TransactionType.BankDebit
+            });
 
-        var req = new TransactionRequest
-        {
-            PartnerTransactionRef = "ABC",
-            SubscriptionId = Guid.NewGuid(),
-            Amount = 1000,
-            Currency = "XOF"
-        };
-        var result = await handler.Handle(new BankDebitCommand(partnerId, req), CancellationToken.None);
+        var result = await handler.Handle(new BankDebitCommand(partnerId, MakeReq(@ref: "ABC")), CancellationToken.None);
 
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.TransactionId.Should().Be(existing.TransactionId);
+        result.IsFailure.Should().BeTrue();
+        result.ErrorCode.Should().Be("DUPLICATE_PARTNER_TRANSACTION_REF");
     }
 
     [Fact]
-    public async Task Fails_when_subscription_invalid()
+    public async Task Fails_when_partner_inactive()
+    {
+        var handler = BuildHandler(out _, out _, out var partners, out _, out _);
+        var partnerId = Guid.NewGuid();
+        partners.Setup(x => x.GetByIdAsync(partnerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Partner { PartnerId = partnerId, Status = PartnerStatus.Inactive, ApiKey = "hashed-key" });
+
+        var result = await handler.Handle(new BankDebitCommand(partnerId, MakeReq(@ref: "REF-X")), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.ErrorCode.Should().Be("PARTNER_INACTIVE");
+    }
+
+    [Fact]
+    public async Task Fails_when_subscription_not_found_by_phone_and_bank()
     {
         var handler = BuildHandler(out var txs, out var subs, out var partners, out _, out _);
         var partnerId = Guid.NewGuid();
         txs.Setup(x => x.GetByPartnerRefAsync(partnerId, "REF1", It.IsAny<CancellationToken>())).ReturnsAsync((Transaction?)null);
-        partners.Setup(x => x.GetByIdAsync(partnerId, It.IsAny<CancellationToken>())).ReturnsAsync(new Partner { PartnerId = partnerId, Status = PartnerStatus.Active, ApiKey = "hashed-key" });
-        subs.Setup(x => x.GetByIdAsync(It.IsAny<object>(), It.IsAny<CancellationToken>())).ReturnsAsync((Subscription?)null);
+        partners.Setup(x => x.GetByIdAsync(partnerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Partner { PartnerId = partnerId, Status = PartnerStatus.Active, ApiKey = "hashed-key" });
+        subs.Setup(x => x.GetActiveSubscriptionByPartnerAndContactAsync(partnerId, "+22177", "ACC123", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Subscription?)null);
 
-        var req = new TransactionRequest
-        {
-            PartnerTransactionRef = "REF1",
-            SubscriptionId = Guid.NewGuid(),
-            Amount = 1000,
-            Currency = "XOF"
-        };
-        var result = await handler.Handle(new BankDebitCommand(partnerId, req), CancellationToken.None);
+        var result = await handler.Handle(new BankDebitCommand(partnerId, MakeReq(@ref: "REF1")), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        result.ErrorCode.Should().Be("SUBSCRIPTION_INVALID");
+        result.ErrorCode.Should().Be("SUBSCRIPTION_NOT_FOUND");
     }
 
     [Fact]
-    public async Task Marks_transaction_as_failed_when_bank_returns_error()
+    public async Task Fails_transaction_when_bank_returns_error()
     {
         var handler = BuildHandler(out var txs, out var subs, out var partners, out var bank, out _);
         var partnerId = Guid.NewGuid();
         var subscriptionId = Guid.NewGuid();
         txs.Setup(x => x.GetByPartnerRefAsync(partnerId, "REF2", It.IsAny<CancellationToken>())).ReturnsAsync((Transaction?)null);
-        partners.Setup(x => x.GetByIdAsync(partnerId, It.IsAny<CancellationToken>())).ReturnsAsync(new Partner { PartnerId = partnerId, Status = PartnerStatus.Active, ApiKey = "hashed-key" });
-        subs.Setup(x => x.GetByIdAsync(subscriptionId, It.IsAny<CancellationToken>())).ReturnsAsync(new Subscription
-        {
-            SubscriptionId = subscriptionId,
-            PartnerId = partnerId,
-            CustomerId = Guid.NewGuid(),
-            BankAccountNumber = "ACC123",
-            PhoneNumber = "+22177",
-            Status = SubscriptionStatus.Active
-        });
+        partners.Setup(x => x.GetByIdAsync(partnerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Partner { PartnerId = partnerId, Status = PartnerStatus.Active, ApiKey = "hashed-key" });
+        subs.Setup(x => x.GetActiveSubscriptionByPartnerAndContactAsync(partnerId, "+22177", "ACC123", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Subscription
+            {
+                SubscriptionId = subscriptionId,
+                PartnerId = partnerId,
+                CustomerId = Guid.NewGuid(),
+                BankAccount = "ACC123",
+                PhoneNumber = "+22177",
+                Status = SubscriptionStatus.Active
+            });
         bank.Setup(x => x.DebitAsync(It.IsAny<Partner>(), It.IsAny<BankTransactionRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new BankTransactionResponse("EXT-1", "FAILED", "INSUFFICIENT_FUNDS"));
 
-        var req = new TransactionRequest
-        {
-            PartnerTransactionRef = "REF2",
-            SubscriptionId = subscriptionId,
-            Amount = 1000,
-            Currency = "XOF"
-        };
-        var result = await handler.Handle(new BankDebitCommand(partnerId, req), CancellationToken.None);
+        var result = await handler.Handle(new BankDebitCommand(partnerId, MakeReq(@ref: "REF2")), CancellationToken.None);
 
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.Status.Should().Be(TransactionStatus.Failed);
-        result.Value.FailureReason.Should().Be("INSUFFICIENT_FUNDS");
+        result.IsFailure.Should().BeTrue();
+        result.ErrorCode.Should().Be("TRANSACTION_FAILED");
     }
 }

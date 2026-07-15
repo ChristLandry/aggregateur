@@ -36,7 +36,7 @@ public class SubscriptionController : BaseApiController
         var currentPartnerId = _currentPartner.PartnerId!.Value;
 
         var subRequest = new CreateSubscriptionRequest(
-            request.BankAccountNumber,
+            request.BankAccount,
             request.PhoneNumber,
             request.PhoneOperator,
             request.ExpiresAt);

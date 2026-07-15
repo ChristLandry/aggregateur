@@ -57,7 +57,8 @@ public class SubscriptionConfiguration : IEntityTypeConfiguration<Subscription>
     {
         b.ToTable("Subscriptions");
         b.HasKey(x => x.SubscriptionId);
-        b.Property(x => x.BankAccountNumber)
+        b.Property(x => x.BankAccount)
+            .HasColumnName("BankAccountNumber")
             .IsRequired().HasMaxLength(500)
             .HasConversion(EncryptionValueConverter.ForString());
         b.Property(x => x.PhoneNumber).IsRequired().HasMaxLength(500)
@@ -66,10 +67,10 @@ public class SubscriptionConfiguration : IEntityTypeConfiguration<Subscription>
         b.Property(x => x.Status).HasConversion<int>();
 
         // Regle metier : une souscription est unique par le triplet exact
-        // (PartnerId, BankAccountNumber, PhoneNumber). Le meme bank account peut etre
+        // (PartnerId, BankAccount, PhoneNumber). Le meme bank account peut etre
         // reutilise avec un autre phone et inversement, y compris chez le meme partenaire.
         // L'index est filtre sur IsDeleted = 0 pour permettre la reutilisation apres soft-delete.
-        b.HasIndex(x => new { x.PartnerId, x.BankAccountNumber, x.PhoneNumber })
+        b.HasIndex(x => new { x.PartnerId, x.BankAccount, x.PhoneNumber })
             .IsUnique()
             .HasFilter("[IsDeleted] = 0")
             .HasDatabaseName("IX_Subscriptions_Partner_Bank_Phone_Unique");

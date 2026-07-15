@@ -10,23 +10,21 @@ using Microsoft.Extensions.Logging;
 
 namespace AggregatorPlatform.Application.Features.Financial.Commands;
 
-public record BankDebitCommand(Guid PartnerId, TransactionRequest Request) : IRequest<Result<TransactionDto>>;
+public record BankDebitCommand(Guid PartnerId, BankTransactionInitiateRequest Request) : IRequest<Result<TransactionDto>>;
 
 public class BankDebitValidator : AbstractValidator<BankDebitCommand>
 {
     public BankDebitValidator()
     {
-        RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
-        // OperationType est obligatoire et doit etre BTW ou WTB.
+        RuleFor(x => x.Request).SetValidator(new BankTransactionInitiateRequestValidator());
         RuleFor(x => x.Request.OperationType)
-            .NotEmpty()
-            .WithMessage("OperationType est obligatoire pour /api/v1/bank/debit.")
+            .NotEmpty().WithMessage("OperationType est obligatoire pour /api/v1/bank/debit.")
             .Must(op => op == "BTW" || op == "WTB")
             .WithMessage("OperationType doit etre 'BTW' (debit vers wallet) ou 'WTB' (credit depuis wallet).");
     }
 }
 
-public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<BankDebitCommand, Result<TransactionDto>>
+public class BankDebitCommandHandler : BankBaseHandler, IRequestHandler<BankDebitCommand, Result<TransactionDto>>
 {
     private readonly IBankApiClient _bank;
 
@@ -42,23 +40,19 @@ public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<Ban
 
     public async Task<Result<TransactionDto>> Handle(BankDebitCommand request, CancellationToken cancellationToken)
     {
-        // 1) Idempotence
-        var idem = await CheckIdempotenceAsync(request.PartnerId, request.Request.PartnerTransactionRef, cancellationToken);
-        if (idem is not null) return idem;
-
-        // 2) Pre-validation : partenaire actif + ApiKey + PartnerEndpoint(BankDebit) + schema lie
         var preCheck = await PreValidatePartnerAsync(request.PartnerId, TransactionType.BankDebit, cancellationToken);
         if (preCheck is not null) return preCheck;
 
+        var dup = await EnsureNoDuplicatePartnerRefAsync(request.PartnerId, request.Request.PartnerTransactionRef, cancellationToken);
+        if (dup is not null) return dup;
+
+        var (sub, subErr) = await ResolveBankSubscriptionOrFailAsync(
+            request.PartnerId, request.Request.PhoneNumber, request.Request.BankAccount, cancellationToken);
+        if (subErr is not null) return subErr;
+
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
 
-        var (sub, err) = await ResolveSubscriptionAsync(request.Request, request.PartnerId, cancellationToken);
-        if (err == "SUBSCRIPTION_INVALID")
-            return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
-
-        var tx = BuildTransaction(request.Request, sub, request.PartnerId, TransactionType.BankDebit);
-        // Persiste OperationType (déjà validée par le validator : BTW ou WTB).
-        tx.OperationType = request.Request.OperationType;
+        var tx = BuildBankTransaction(request.Request, sub!, request.PartnerId, TransactionType.BankDebit);
 
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
@@ -78,22 +72,21 @@ public class BankDebitCommandHandler : FinancialBaseHandler, IRequestHandler<Ban
             await FinalizeAsync(tx, null, false, ex.Message, cancellationToken);
         }
 
-        // Retourner Success ou Failure selon le statut réel de la transaction
         if (tx.Status == TransactionStatus.Success)
             return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
 
-        return Result<TransactionDto>.Failure(tx.FailureReason ?? "Transaction failed", "TRANSACTION_FAILED");
+        return Result<TransactionDto>.Failure("TRANSACTION_FAILED", tx.FailureReason ?? "Transaction failed");
     }
 }
 
-public record BankCreditCommand(Guid PartnerId, TransactionRequest Request) : IRequest<Result<TransactionDto>>;
+public record BankCreditCommand(Guid PartnerId, BankTransactionInitiateRequest Request) : IRequest<Result<TransactionDto>>;
 
 public class BankCreditValidator : AbstractValidator<BankCreditCommand>
 {
-    public BankCreditValidator() => RuleFor(x => x.Request).SetValidator(new TransactionRequestValidator());
+    public BankCreditValidator() => RuleFor(x => x.Request).SetValidator(new BankTransactionInitiateRequestValidator());
 }
 
-public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<BankCreditCommand, Result<TransactionDto>>
+public class BankCreditCommandHandler : BankBaseHandler, IRequestHandler<BankCreditCommand, Result<TransactionDto>>
 {
     private readonly IBankApiClient _bank;
 
@@ -109,22 +102,19 @@ public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<Ba
 
     public async Task<Result<TransactionDto>> Handle(BankCreditCommand request, CancellationToken cancellationToken)
     {
-        var idem = await CheckIdempotenceAsync(request.PartnerId, request.Request.PartnerTransactionRef, cancellationToken);
-        if (idem is not null) return idem;
-
         var preCheck = await PreValidatePartnerAsync(request.PartnerId, TransactionType.BankCredit, cancellationToken);
         if (preCheck is not null) return preCheck;
 
+        var dup = await EnsureNoDuplicatePartnerRefAsync(request.PartnerId, request.Request.PartnerTransactionRef, cancellationToken);
+        if (dup is not null) return dup;
+
+        var (sub, subErr) = await ResolveBankSubscriptionOrFailAsync(
+            request.PartnerId, request.Request.PhoneNumber, request.Request.BankAccount, cancellationToken);
+        if (subErr is not null) return subErr;
+
         var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
 
-        var (sub, err) = await ResolveSubscriptionAsync(request.Request, request.PartnerId, cancellationToken);
-        if (err == "SUBSCRIPTION_INVALID")
-            return Result<TransactionDto>.Failure("SUBSCRIPTION_INVALID", "Subscription not found, not active or not owned by partner.");
-
-        var tx = BuildTransaction(request.Request, sub, request.PartnerId, TransactionType.BankCredit);
-
-        // Persiste OperationType si fourni.
-        tx.OperationType = request.Request.OperationType;
+        var tx = BuildBankTransaction(request.Request, sub!, request.PartnerId, TransactionType.BankCredit);
 
         await Transactions.AddAsync(tx, cancellationToken);
         await Uow.SaveChangesAsync(cancellationToken);
@@ -144,10 +134,9 @@ public class BankCreditCommandHandler : FinancialBaseHandler, IRequestHandler<Ba
             await FinalizeAsync(tx, null, false, ex.Message, cancellationToken);
         }
 
-        // Retourner Success ou Failure selon le statut réel de la transaction
         if (tx.Status == TransactionStatus.Success)
             return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
 
-        return Result<TransactionDto>.Failure(tx.FailureReason ?? "Transaction failed", "TRANSACTION_FAILED");
+        return Result<TransactionDto>.Failure("TRANSACTION_FAILED", tx.FailureReason ?? "Transaction failed");
     }
 }

@@ -14,7 +14,7 @@ public class CreateSubscriptionValidator : AbstractValidator<CreateSubscriptionC
 {
     public CreateSubscriptionValidator()
     {
-        RuleFor(x => x.Request.BankAccountNumber).NotEmpty().MaximumLength(50);
+        RuleFor(x => x.Request.BankAccount).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Request.PhoneNumber).NotEmpty().MaximumLength(20);
         RuleFor(x => x.Request.PhoneOperator).NotEmpty().MaximumLength(50);
     }
@@ -47,12 +47,12 @@ public class CreateSubscriptionCommandHandler : IRequestHandler<CreateSubscripti
         if (partner is null) return Result<Guid>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
         // Regle metier : une souscription est unique par le triplet exact
-        // (PartnerId, BankAccountNumber, PhoneNumber). Verification applicative AVANT le
+        // (PartnerId, BankAccount, PhoneNumber). Verification applicative AVANT le
         // SaveChanges pour un code d'erreur explicite ; l'index unique compose en BD
         // garantit la regle meme en cas de race condition.
         var duplicate = await _subs.ExistsByPartnerBankAndPhoneAsync(
             request.PartnerId,
-            request.Request.BankAccountNumber,
+            request.Request.BankAccount,
             request.Request.PhoneNumber,
             cancellationToken);
         if (duplicate)
@@ -63,7 +63,7 @@ public class CreateSubscriptionCommandHandler : IRequestHandler<CreateSubscripti
         {
             CustomerId = request.CustomerId,
             PartnerId = request.PartnerId,
-            BankAccountNumber = request.Request.BankAccountNumber,
+            BankAccount = request.Request.BankAccount,
             PhoneNumber = request.Request.PhoneNumber,
             PhoneOperator = request.Request.PhoneOperator,
             ExpiresAt = request.Request.ExpiresAt

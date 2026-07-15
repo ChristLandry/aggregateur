@@ -28,25 +28,23 @@ public record TransactionDto(
     string? OperationType);
 
 /// <summary>
-/// Payload generique d'initiation d'une transaction (debit/credit, bank/wallet).
+/// Payload generique d'initiation d'une transaction wallet (debit/credit/cancel).
+/// La cible peut etre resolue soit via <see cref="SubscriptionId"/>, soit via
+/// <see cref="BankAccount"/> / <see cref="PhoneNumber"/>. Pour les endpoints
+/// /api/v1/bank/* utiliser <see cref="BankTransactionInitiateRequest"/>.
 /// </summary>
-/// <remarks>
-/// Au moins un identifiant de cible est requis :
-///   - <see cref="SubscriptionId"/> (cas standard : l'abonnement portait deja le compte et/ou le numero),
-///   - ou <see cref="BankAccount"/> / <see cref="PhoneNumber"/> (cible explicite hors abonnement).
-/// </remarks>
 public record TransactionRequest
 {
     /// <summary>Reference d'idempotence cote partenaire (obligatoire).</summary>
     public string PartnerTransactionRef { get; init; } = string.Empty;
 
-    /// <summary>Numero de compte bancaire cible (alimente la transaction si pas de subscription).</summary>
+    /// <summary>Numero de compte bancaire cible.</summary>
     public string? BankAccount { get; init; }
 
-    /// <summary>Numero de telephone wallet cible (alimente la transaction si pas de subscription).</summary>
+    /// <summary>Numero de telephone wallet cible.</summary>
     public string? PhoneNumber { get; init; }
 
-    /// <summary>Abonnement client/partenaire — optionnel : si fourni, BankAccount/PhoneNumber sont resolus depuis lui.</summary>
+    /// <summary>Abonnement client/partenaire (optionnel).</summary>
     public Guid? SubscriptionId { get; init; }
 
     /// <summary>Montant brut (obligatoire, > 0).</summary>
@@ -77,7 +75,51 @@ public record TransactionRequest
 
 public record CancelTransactionRequest(string PartnerTransactionRef, string OriginalExternalRef);
 
+/// <summary>
+/// Payload d'initiation d'une transaction bancaire (/api/v1/bank/debit + /api/v1/bank/credit).
+/// La souscription cible est resolue via le triplet (PartnerId, BankAccount, PhoneNumber) —
+/// aucun SubscriptionId n'est accepte cote payload.
+/// </summary>
+public record BankTransactionInitiateRequest
+{
+    /// <summary>Reference d'idempotence cote partenaire (obligatoire).</summary>
+    public string PartnerTransactionRef { get; init; } = string.Empty;
+
+    /// <summary>Numero de compte bancaire cible (obligatoire).</summary>
+    public string? BankAccount { get; init; }
+
+    /// <summary>Numero de telephone associe a la souscription (obligatoire).</summary>
+    public string? PhoneNumber { get; init; }
+
+    /// <summary>Montant brut (obligatoire, > 0).</summary>
+    public decimal Amount { get; init; }
+
+    /// <summary>
+    /// Frais imposes par l'appelant (optionnel). Si null : calcule par le schema comptable.
+    /// </summary>
+    public decimal? Fees { get; init; }
+
+    /// <summary>Devise ISO-4217, 3 caracteres (obligatoire).</summary>
+    public string Currency { get; init; } = string.Empty;
+
+    /// <summary>Libelle libre.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Donnees additionnelles libres serialisees en JSON (optionnel).</summary>
+    public JsonElement? ExtraData { get; init; }
+
+    /// <summary>
+    /// OperationType : type d'operation bancaire (BTW ou WTB). Obligatoire pour /api/v1/bank/debit.
+    /// </summary>
+    public string? OperationType { get; init; }
+}
+
 public record BalanceDto(string Identifier, decimal Balance, string Currency, string Status);
+
+/// <summary>Payload d'entree pour /api/v1/bank/balance.</summary>
+/// <param name="BankAccount">Numero de compte bancaire (obligatoire).</param>
+/// <param name="PhoneNumber">Numero de telephone associe a la souscription (obligatoire).</param>
+public record BankBalanceRequest(string BankAccount, string PhoneNumber);
 
 /// <summary>Requete de KYC wallet cote partenaire.</summary>
 /// <param name="PhoneNumber">Numero du wallet (obligatoire).</param>
@@ -96,21 +138,20 @@ public record WalletKycDto(
     string? NationalId);
 
 /// <summary>Requete de KYC bank cote partenaire (POST /api/v1/bank/kyc).</summary>
-/// <param name="AccountNumber">Numero de compte bancaire (obligatoire).</param>
+/// <param name="PhoneNumber">Numero de telephone identifiant le compte bancaire (obligatoire).</param>
 /// <param name="PartnerTemporalyCode">Code temporaire fourni par le partenaire (nonce/OTP).</param>
 /// <param name="Extras">Donnees additionnelles libres transmises par le partenaire.</param>
 public record BankKycRequest(
-    string AccountNumber,
+    string PhoneNumber,
     string? PartnerTemporalyCode,
     Dictionary<string, object?>? Extras);
 
 /// <summary>Reponse KYC bank : identite du client rattachee au compte bancaire.</summary>
 public record BankKycDto(
-    string AccountNumber,
+    string PhoneNumber,
     string FullName,
     DateOnly? DateOfBirth,
-    string? NationalId,
-    string? PhoneNumber);
+    string? NationalId);
 
 /// <summary>
 /// Enveloppe de reponse specifique aux operations wallet transactionnelles

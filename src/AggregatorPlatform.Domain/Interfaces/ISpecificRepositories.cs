@@ -24,12 +24,19 @@ public interface ISubscriptionRepository : IRepository<Subscription>
 {
     /// <summary>
     /// Vrai si une souscription active existe deja pour ce triplet exact
-    /// (PartnerId, BankAccountNumber, PhoneNumber).
+    /// (PartnerId, BankAccount, PhoneNumber).
     /// Regle metier : seule la combinaison complete est interdite ;
     /// reutiliser le meme bank account avec un autre phone (et inversement) est autorise,
     /// y compris chez le meme partenaire.
     /// </summary>
-    Task<bool> ExistsByPartnerBankAndPhoneAsync(Guid partnerId, string bankAccountNumber, string phoneNumber, CancellationToken cancellationToken = default);
+    Task<bool> ExistsByPartnerBankAndPhoneAsync(Guid partnerId, string bankAccount, string phoneNumber, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Recupere la souscription ACTIVE d'un partenaire pour un couple (phoneNumber, bankAccount).
+    /// Utilise par les endpoints /api/v1/bank/* pour identifier la souscription cible
+    /// sans passer par un SubscriptionId explicite.
+    /// </summary>
+    Task<Subscription?> GetActiveSubscriptionByPartnerAndContactAsync(Guid partnerId, string phoneNumber, string bankAccount, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<Subscription>> GetByCustomerAsync(Guid customerId, CancellationToken cancellationToken = default);
 }

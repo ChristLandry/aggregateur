@@ -1,3 +1,3 @@
 namespace AggregatorPlatform.Application.Interfaces;
 
-public record BankBalanceResponse(string AccountNumber, decimal Balance, string Currency, string Status);
+public record BankBalanceResponse(string PhoneNumber, decimal Balance, string Currency, string Status);

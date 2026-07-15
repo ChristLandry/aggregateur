@@ -6,7 +6,7 @@ namespace AggregatorPlatform.API.Logging;
 
 public class PiiMaskingEnricher : ILogEventEnricher
 {
-    private static readonly string[] SensitiveProperties = { "PhoneNumber", "BankAccountNumber", "NationalId", "Password", "ApiKey" };
+    private static readonly string[] SensitiveProperties = { "PhoneNumber", "BankAccount", "BankAccountNumber", "NationalId", "Password", "ApiKey" };
 
     public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
     {

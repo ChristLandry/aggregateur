@@ -13,7 +13,7 @@ public record SubscriptionDto(
     DateTime? ExpiresAt);
 
 public record CreateSubscriptionRequest(
-    string BankAccountNumber,
+    string BankAccount,
     string PhoneNumber,
     string PhoneOperator,
     DateTime? ExpiresAt);
@@ -25,7 +25,7 @@ public record CreateSubscriptionRequest(
 /// </summary>
 public record CreateSubscriptionDirectRequest(
     Guid CustomerId,
-    string BankAccountNumber,
+    string BankAccount,
     string PhoneNumber,
     string PhoneOperator,
     DateTime? ExpiresAt);

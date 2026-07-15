@@ -22,23 +22,26 @@ public class BankController : BaseApiController
 
     private Guid PartnerId => _currentPartner.PartnerId!.Value;
 
-    /// <summary>Solde du compte bancaire d'un abonne.</summary>
-    [HttpGet("balance")]
-    public async Task<ActionResult<ApiResponse<BalanceDto>>> GetBalance([FromQuery] Guid subscriptionId, CancellationToken ct)
-        => ToResponse(await Mediator.Send(new GetBankBalanceQuery(PartnerId, subscriptionId), ct));
+    /// <summary>
+    /// Solde du compte bancaire d'un abonne. La souscription est resolue via le triplet
+    /// (PartnerId, BankAccount, PhoneNumber).
+    /// </summary>
+    [HttpPost("balance")]
+    public async Task<ActionResult<ApiResponse<BalanceDto>>> GetBalance([FromBody] BankBalanceRequest request, CancellationToken ct)
+        => ToResponse(await Mediator.Send(new GetBankBalanceQuery(PartnerId, request), ct));
 
     /// <summary>KYC bank par numero de compte. Retourne l'identite du client rattache au compte.</summary>
     [HttpPost("kyc")]
     public async Task<ActionResult<ApiResponse<BankKycDto>>> GetKyc([FromBody] BankKycRequest request, CancellationToken ct)
         => ToResponse(await Mediator.Send(new GetBankKycQuery(PartnerId, request), ct));
 
-    /// <summary>Initie un debit bancaire.</summary>
+    /// <summary>Initie un debit bancaire. Souscription resolue via (partnerId, bankAccount, phoneNumber).</summary>
     [HttpPost("debit")]
-    public async Task<ActionResult<ApiResponse<TransactionDto>>> Debit([FromBody] TransactionRequest request, CancellationToken ct)
+    public async Task<ActionResult<ApiResponse<TransactionDto>>> Debit([FromBody] BankTransactionInitiateRequest request, CancellationToken ct)
         => ToResponse(await Mediator.Send(new BankDebitCommand(PartnerId, request), ct));
 
-    /// <summary>Initie un credit bancaire.</summary>
+    /// <summary>Initie un credit bancaire. Souscription resolue via (partnerId, bankAccount, phoneNumber).</summary>
     [HttpPost("credit")]
-    public async Task<ActionResult<ApiResponse<TransactionDto>>> Credit([FromBody] TransactionRequest request, CancellationToken ct)
+    public async Task<ActionResult<ApiResponse<TransactionDto>>> Credit([FromBody] BankTransactionInitiateRequest request, CancellationToken ct)
         => ToResponse(await Mediator.Send(new BankCreditCommand(PartnerId, request), ct));
 }

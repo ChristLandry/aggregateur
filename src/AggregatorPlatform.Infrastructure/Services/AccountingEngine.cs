@@ -235,7 +235,7 @@ public class AccountingEngine : IAccountingEngine
             ["PARTNER.Balance"]       = account?.Balance ?? 0m,
             ["PARTNER.AccountCode"]   = partner?.AccountCode ?? "DEFAULT",
             ["CUSTOMER.PhoneNumber"]  = sub?.PhoneNumber ?? string.Empty,
-            ["CUSTOMER.BankAccount"]  = sub?.BankAccountNumber ?? string.Empty,
+            ["CUSTOMER.BankAccount"]  = sub?.BankAccount ?? string.Empty,
             ["TX.Currency"]           = tx.Currency,
             ["TX.Type"]               = tx.TransactionType.ToString(),
         };

@@ -47,11 +47,19 @@ public class SubscriptionRepository : Repository<Subscription>, ISubscriptionRep
 {
     public SubscriptionRepository(AggregatorDbContext db) : base(db) { }
 
-    public Task<bool> ExistsByPartnerBankAndPhoneAsync(Guid partnerId, string bankAccountNumber, string phoneNumber, CancellationToken cancellationToken = default)
+    public Task<bool> ExistsByPartnerBankAndPhoneAsync(Guid partnerId, string bankAccount, string phoneNumber, CancellationToken cancellationToken = default)
         => Set.AnyAsync(s =>
             s.PartnerId == partnerId &&
-            s.BankAccountNumber == bankAccountNumber &&
+            s.BankAccount == bankAccount &&
             s.PhoneNumber == phoneNumber,
+            cancellationToken);
+
+    public Task<Subscription?> GetActiveSubscriptionByPartnerAndContactAsync(Guid partnerId, string phoneNumber, string bankAccount, CancellationToken cancellationToken = default)
+        => Set.FirstOrDefaultAsync(s =>
+            s.PartnerId == partnerId &&
+            s.PhoneNumber == phoneNumber &&
+            s.BankAccount == bankAccount &&
+            s.Status == SubscriptionStatus.Active,
             cancellationToken);
 
     public async Task<IReadOnlyList<Subscription>> GetByCustomerAsync(Guid customerId, CancellationToken cancellationToken = default)
