@@ -15,15 +15,11 @@ public sealed class TransactionRequestValidator : AbstractValidator<TransactionR
             .MaximumLength(100);
 
         // BankAccount et PhoneNumber sont desormais OBLIGATOIRES.
-        RuleFor(x => x.BankAccount)
-            .NotEmpty()
-            .MaximumLength(11)
-            .WithMessage("BankAccount is required.");
+        RuleFor(x => x.BankAccount).NotEmpty().WithMessage("BankAccount is required.");
+        RuleFor(x => x.BankAccount).MaximumLength(50);
 
-        RuleFor(x => x.PhoneNumber)
-            .NotEmpty()
-            .MaximumLength(13)
-            .WithMessage("PhoneNumber is required.");
+        RuleFor(x => x.PhoneNumber).NotEmpty().WithMessage("PhoneNumber is required.");
+        RuleFor(x => x.PhoneNumber).MaximumLength(20);
 
         RuleFor(x => x.Amount)
             .GreaterThan(0);

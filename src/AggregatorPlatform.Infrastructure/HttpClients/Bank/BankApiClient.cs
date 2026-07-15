@@ -28,9 +28,21 @@ public class BankApiClient : IBankApiClient
 
     public async Task<BankBalanceResponse> GetBalanceAsync(Partner partner, string phoneNumber, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var resp = await client.GetFromJsonAsync<BankBalanceResponse>($"/bank/balance?phone={Uri.EscapeDataString(phoneNumber)}", cancellationToken);
-        return resp ?? new BankBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
+        // Catch-all : couvre HttpRequestException, JsonException, mais aussi
+        // Polly.CircuitBreaker.BrokenCircuitException quand le circuit est ouvert.
+        // On veut toujours rendre une reponse structuree (status=UNKNOWN) plutot que 500.
+        try
+        {
+            var client = CreateClient(partner);
+            var resp = await client.GetFromJsonAsync<BankBalanceResponse>($"/bank/balance?phone={Uri.EscapeDataString(phoneNumber)}", cancellationToken);
+            return resp ?? new BankBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Bank balance failed for partner {PartnerId} ({Type}: {Message})",
+                partner.PartnerId, ex.GetType().Name, ex.Message);
+            return new BankBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
+        }
     }
 
     public async Task<BankKycDto> GetKycAsync(Partner partner, BankKycRequest request, CancellationToken cancellationToken = default)
