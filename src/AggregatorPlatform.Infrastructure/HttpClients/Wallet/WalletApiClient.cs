@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using AggregatorPlatform.Application.DTOs;
 using AggregatorPlatform.Application.Interfaces;
 using AggregatorPlatform.Domain.Entities;
@@ -33,10 +34,23 @@ public class WalletApiClient : IWalletApiClient
 
     public async Task<WalletBalanceResponse> GetBalanceAsync(Partner partner, string phoneNumber, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var resp = await client.GetFromJsonAsync<WalletBalanceResponse>(
-            $"/wallet/balance?phone={Uri.EscapeDataString(phoneNumber)}", cancellationToken);
-        return resp ?? new WalletBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
+        try
+        {
+            var client = CreateClient(partner);
+            var resp = await client.GetFromJsonAsync<WalletBalanceResponse>(
+                $"/wallet/balance?phone={Uri.EscapeDataString(phoneNumber)}", cancellationToken);
+            return resp ?? new WalletBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Wallet balance JSON parsing failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Wallet balance HTTP request failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
+        }
     }
 
     public async Task<WalletKycDto> GetKycAsync(Partner partner, WalletKycRequest request, CancellationToken cancellationToken = default)
@@ -50,49 +64,114 @@ public class WalletApiClient : IWalletApiClient
 
     public async Task<WalletTransactionResponse> DebitAsync(Partner partner, WalletTransactionRequest request, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var response = await client.PostAsJsonAsync("/wallet/debit", request, cancellationToken);
-        var body = await response.Content.ReadFromJsonAsync<WalletTransactionResponse>(cancellationToken: cancellationToken);
-        return body ?? new WalletTransactionResponse(string.Empty,
-            response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        try
+        {
+            var client = CreateClient(partner);
+            var response = await client.PostAsJsonAsync("/wallet/debit", request, cancellationToken);
+            var body = await response.Content.ReadFromJsonAsync<WalletTransactionResponse>(cancellationToken: cancellationToken);
+            return body ?? new WalletTransactionResponse(string.Empty,
+                response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Wallet debit JSON parsing failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletTransactionResponse(string.Empty, "FAILED", "Invalid JSON response from wallet API");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Wallet debit HTTP request failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletTransactionResponse(string.Empty, "FAILED", $"Wallet API communication failed: {ex.Message}");
+        }
     }
 
     public async Task<WalletTransactionResponse> CreditAsync(Partner partner, WalletTransactionRequest request, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var response = await client.PostAsJsonAsync("/wallet/credit", request, cancellationToken);
-        var body = await response.Content.ReadFromJsonAsync<WalletTransactionResponse>(cancellationToken: cancellationToken);
-        return body ?? new WalletTransactionResponse(string.Empty,
-            response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        try
+        {
+            var client = CreateClient(partner);
+            var response = await client.PostAsJsonAsync("/wallet/credit", request, cancellationToken);
+            var body = await response.Content.ReadFromJsonAsync<WalletTransactionResponse>(cancellationToken: cancellationToken);
+            return body ?? new WalletTransactionResponse(string.Empty,
+                response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Wallet credit JSON parsing failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletTransactionResponse(string.Empty, "FAILED", "Invalid JSON response from wallet API");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Wallet credit HTTP request failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletTransactionResponse(string.Empty, "FAILED", $"Wallet API communication failed: {ex.Message}");
+        }
     }
 
     public async Task<WalletTransactionResponse> CancelAsync(Partner partner, string externalRef, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var response = await client.PostAsJsonAsync("/wallet/cancel", new { externalRef }, cancellationToken);
-        var body = await response.Content.ReadFromJsonAsync<WalletTransactionResponse>(cancellationToken: cancellationToken);
-        return body ?? new WalletTransactionResponse(externalRef,
-            response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        try
+        {
+            var client = CreateClient(partner);
+            var response = await client.PostAsJsonAsync("/wallet/cancel", new { externalRef }, cancellationToken);
+            var body = await response.Content.ReadFromJsonAsync<WalletTransactionResponse>(cancellationToken: cancellationToken);
+            return body ?? new WalletTransactionResponse(externalRef,
+                response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Wallet cancel JSON parsing failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletTransactionResponse(externalRef, "FAILED", "Invalid JSON response from wallet API");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Wallet cancel HTTP request failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletTransactionResponse(externalRef, "FAILED", $"Wallet API communication failed: {ex.Message}");
+        }
     }
 
     public async Task<WalletTransactionResponse> GetStatusAsync(Partner partner, string externalRef, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var resp = await client.GetFromJsonAsync<WalletTransactionResponse>(
-            $"/wallet/status?ref={Uri.EscapeDataString(externalRef)}", cancellationToken);
-        return resp ?? new WalletTransactionResponse(externalRef, "UNKNOWN", null);
+        try
+        {
+            var client = CreateClient(partner);
+            var resp = await client.GetFromJsonAsync<WalletTransactionResponse>(
+                $"/wallet/status?ref={Uri.EscapeDataString(externalRef)}", cancellationToken);
+            return resp ?? new WalletTransactionResponse(externalRef, "UNKNOWN", null);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Wallet status JSON parsing failed for partner {PartnerId}, ref {Ref}", partner.PartnerId, externalRef);
+            return new WalletTransactionResponse(externalRef, "UNKNOWN", "Invalid JSON response from wallet API");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Wallet status HTTP request failed for partner {PartnerId}, ref {Ref}", partner.PartnerId, externalRef);
+            return new WalletTransactionResponse(externalRef, "UNKNOWN", $"Wallet API communication failed: {ex.Message}");
+        }
     }
 
     public async Task<WalletLinkResponse> LinkAsync(Partner partner, WalletLinkRequest request, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var response = await client.PostAsJsonAsync("/wallet/link", request, cancellationToken);
-        var body = await response.Content.ReadFromJsonAsync<WalletLinkResponse>(cancellationToken: cancellationToken);
-        return body ?? new WalletLinkResponse(
-            LinkId: null,
-            PhoneNumber: request.PhoneNumber,
-            Status: response.IsSuccessStatusCode ? "SUCCESS" : "FAILED",
-            FailureReason: response.IsSuccessStatusCode ? null : response.ReasonPhrase);
+        try
+        {
+            var client = CreateClient(partner);
+            var response = await client.PostAsJsonAsync("/wallet/link", request, cancellationToken);
+            var body = await response.Content.ReadFromJsonAsync<WalletLinkResponse>(cancellationToken: cancellationToken);
+            return body ?? new WalletLinkResponse(
+                LinkId: null,
+                PhoneNumber: request.PhoneNumber,
+                Status: response.IsSuccessStatusCode ? "SUCCESS" : "FAILED",
+                FailureReason: response.IsSuccessStatusCode ? null : response.ReasonPhrase);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Wallet link JSON parsing failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletLinkResponse(null, request.PhoneNumber, "FAILED", "Invalid JSON response from wallet API");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Wallet link HTTP request failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletLinkResponse(null, request.PhoneNumber, "FAILED", $"Wallet API communication failed: {ex.Message}");
+        }
     }
 
     public async Task<WalletLinkResponse> UnlinkAsync(Partner partner, WalletUnlinkRequest request, CancellationToken cancellationToken = default)
@@ -103,13 +182,26 @@ public class WalletApiClient : IWalletApiClient
                 "LinkId or PhoneNumber must be provided.");
         }
 
-        var client = CreateClient(partner);
-        var response = await client.PostAsJsonAsync("/wallet/unlink", request, cancellationToken);
-        var body = await response.Content.ReadFromJsonAsync<WalletLinkResponse>(cancellationToken: cancellationToken);
-        return body ?? new WalletLinkResponse(
-            LinkId: request.LinkId,
-            PhoneNumber: request.PhoneNumber ?? string.Empty,
-            Status: response.IsSuccessStatusCode ? "SUCCESS" : "FAILED",
-            FailureReason: response.IsSuccessStatusCode ? null : response.ReasonPhrase);
+        try
+        {
+            var client = CreateClient(partner);
+            var response = await client.PostAsJsonAsync("/wallet/unlink", request, cancellationToken);
+            var body = await response.Content.ReadFromJsonAsync<WalletLinkResponse>(cancellationToken: cancellationToken);
+            return body ?? new WalletLinkResponse(
+                LinkId: request.LinkId,
+                PhoneNumber: request.PhoneNumber ?? string.Empty,
+                Status: response.IsSuccessStatusCode ? "SUCCESS" : "FAILED",
+                FailureReason: response.IsSuccessStatusCode ? null : response.ReasonPhrase);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Wallet unlink JSON parsing failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletLinkResponse(request.LinkId, request.PhoneNumber ?? string.Empty, "FAILED", "Invalid JSON response from wallet API");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Wallet unlink HTTP request failed for partner {PartnerId}", partner.PartnerId);
+            return new WalletLinkResponse(request.LinkId, request.PhoneNumber ?? string.Empty, "FAILED", $"Wallet API communication failed: {ex.Message}");
+        }
     }
 }

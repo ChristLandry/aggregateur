@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using AggregatorPlatform.Application.DTOs;
 using AggregatorPlatform.Application.Interfaces;
 using AggregatorPlatform.Domain.Entities;
@@ -50,24 +51,63 @@ public class BankApiClient : IBankApiClient
 
     public async Task<BankTransactionResponse> DebitAsync(Partner partner, BankTransactionRequest request, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var response = await client.PostAsJsonAsync("/bank/debit", request, cancellationToken);
-        var body = await response.Content.ReadFromJsonAsync<BankTransactionResponse>(cancellationToken: cancellationToken);
-        return body ?? new BankTransactionResponse(string.Empty, response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        try
+        {
+            var client = CreateClient(partner);
+            var response = await client.PostAsJsonAsync("/bank/debit", request, cancellationToken);
+            var body = await response.Content.ReadFromJsonAsync<BankTransactionResponse>(cancellationToken: cancellationToken);
+            return body ?? new BankTransactionResponse(string.Empty, response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Bank debit JSON parsing failed for partner {PartnerId}", partner.PartnerId);
+            return new BankTransactionResponse(string.Empty, "FAILED", "Invalid JSON response from bank API");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Bank debit HTTP request failed for partner {PartnerId}", partner.PartnerId);
+            return new BankTransactionResponse(string.Empty, "FAILED", $"Bank API communication failed: {ex.Message}");
+        }
     }
 
     public async Task<BankTransactionResponse> CreditAsync(Partner partner, BankTransactionRequest request, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var response = await client.PostAsJsonAsync("/bank/credit", request, cancellationToken);
-        var body = await response.Content.ReadFromJsonAsync<BankTransactionResponse>(cancellationToken: cancellationToken);
-        return body ?? new BankTransactionResponse(string.Empty, response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        try
+        {
+            var client = CreateClient(partner);
+            var response = await client.PostAsJsonAsync("/bank/credit", request, cancellationToken);
+            var body = await response.Content.ReadFromJsonAsync<BankTransactionResponse>(cancellationToken: cancellationToken);
+            return body ?? new BankTransactionResponse(string.Empty, response.IsSuccessStatusCode ? "SUCCESS" : "FAILED", response.ReasonPhrase);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Bank credit JSON parsing failed for partner {PartnerId}", partner.PartnerId);
+            return new BankTransactionResponse(string.Empty, "FAILED", "Invalid JSON response from bank API");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Bank credit HTTP request failed for partner {PartnerId}", partner.PartnerId);
+            return new BankTransactionResponse(string.Empty, "FAILED", $"Bank API communication failed: {ex.Message}");
+        }
     }
 
     public async Task<BankTransactionResponse> GetStatusAsync(Partner partner, string externalRef, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var resp = await client.GetFromJsonAsync<BankTransactionResponse>($"/bank/status?ref={Uri.EscapeDataString(externalRef)}", cancellationToken);
-        return resp ?? new BankTransactionResponse(externalRef, "UNKNOWN", null);
+        try
+        {
+            var client = CreateClient(partner);
+            var resp = await client.GetFromJsonAsync<BankTransactionResponse>($"/bank/status?ref={Uri.EscapeDataString(externalRef)}", cancellationToken);
+            return resp ?? new BankTransactionResponse(externalRef, "UNKNOWN", null);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Bank status JSON parsing failed for partner {PartnerId}, ref {Ref}", partner.PartnerId, externalRef);
+            return new BankTransactionResponse(externalRef, "UNKNOWN", "Invalid JSON response from bank API");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Bank status HTTP request failed for partner {PartnerId}, ref {Ref}", partner.PartnerId, externalRef);
+            return new BankTransactionResponse(externalRef, "UNKNOWN", $"Bank API communication failed: {ex.Message}");
+        }
     }
 }
