@@ -15,6 +15,7 @@ public class AccountingSchemaConfiguration : IEntityTypeConfiguration<Accounting
         b.Property(x => x.TransactionType).HasConversion<int>();
         b.Property(x => x.TransactionSide).HasConversion<int>();
         b.Property(x => x.Channel).HasConversion<int>();
+        b.Property(x => x.IsBankManaged).HasDefaultValue(false);
 
         b.HasOne(x => x.Partner).WithMany(p => p.AccountingSchemas).HasForeignKey(x => x.PartnerId).OnDelete(DeleteBehavior.Restrict);
         b.HasMany(x => x.Lines).WithOne(l => l.Schema!).HasForeignKey(l => l.SchemaId).OnDelete(DeleteBehavior.Cascade);

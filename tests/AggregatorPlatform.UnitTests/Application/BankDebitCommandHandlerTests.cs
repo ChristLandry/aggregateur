@@ -36,13 +36,22 @@ public class BankDebitCommandHandlerTests
         var uow = new Mock<IUnitOfWork>();
         var webhooks = new Mock<IWebhookService>();
         var partnerEndpoints = new Mock<IPartnerEndpointRepository>();
+        var schemaId = Guid.NewGuid();
         partnerEndpoints
             .Setup(p => p.GetByPartnerAndKeyAsync(It.IsAny<Guid>(), It.IsAny<FinancialEndpointKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Guid pid, FinancialEndpointKey k, CancellationToken _) =>
-                new PartnerEndpoint { PartnerId = pid, EndpointKey = k, SchemaId = Guid.NewGuid() });
+                new PartnerEndpoint { PartnerId = pid, EndpointKey = k, SchemaId = schemaId });
+        var schemas = new Mock<IAccountingSchemaRepository>();
+        // Par defaut : schema bank-managed (skip AccountingEngine dans le pipeline).
+        schemas.Setup(s => s.GetByIdAsync(schemaId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AccountingSchema { SchemaId = schemaId, Name = "TEST", IsBankManaged = true });
+        // Balance UNKNOWN -> balance check tolere en dev (pas de blocage).
+        bank.Setup(b => b.GetBalanceAsync(It.IsAny<Partner>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BankBalanceResponse("", 0, "XOF", "UNKNOWN"));
         return new BankDebitCommandHandler(txs.Object, subs.Object, partners.Object, partnerEndpoints.Object,
+            schemas.Object, bank.Object,
             uow.Object, accounting.Object, webhooks.Object, BuildMapper(),
-            NullLogger<BankDebitCommandHandler>.Instance, bank.Object);
+            NullLogger<BankDebitCommandHandler>.Instance);
     }
 
     private static BankTransactionInitiateRequest MakeReq(string @ref = "REF", string phone = "+22177", string bank = "ACC123") =>

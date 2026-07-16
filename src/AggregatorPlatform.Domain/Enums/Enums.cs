@@ -75,7 +75,10 @@ public enum AccountingStatus
 {
     Pending = 0,
     Applied = 1,
-    Error = 2
+    Error = 2,
+    // Le hub n'a pas produit de Movements : l'ecriture comptable est deleguee
+    // au connecteur bancaire (schema.IsBankManaged=true).
+    Delegated = 3
 }
 
 public enum AccountType

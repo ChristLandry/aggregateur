@@ -26,57 +26,18 @@ public class BankDebitValidator : AbstractValidator<BankDebitCommand>
 
 public class BankDebitCommandHandler : BankBaseHandler, IRequestHandler<BankDebitCommand, Result<TransactionDto>>
 {
-    private readonly IBankApiClient _bank;
-
     public BankDebitCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
-        IPartnerEndpointRepository partnerEndpoints,
+        IPartnerEndpointRepository partnerEndpoints, IAccountingSchemaRepository schemas,
+        IBankApiClient bank,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
-        IMapper mapper, ILogger<BankDebitCommandHandler> logger, IBankApiClient bank)
-        : base(transactions, subscriptions, partners, partnerEndpoints, uow, accounting, webhooks, mapper, logger)
-    {
-        _bank = bank;
-    }
+        IMapper mapper, ILogger<BankDebitCommandHandler> logger)
+        : base(transactions, subscriptions, partners, partnerEndpoints, schemas, bank,
+               uow, accounting, webhooks, mapper, logger) { }
 
-    public async Task<Result<TransactionDto>> Handle(BankDebitCommand request, CancellationToken cancellationToken)
-    {
-        var preCheck = await PreValidatePartnerAsync(request.PartnerId, TransactionType.BankDebit, cancellationToken);
-        if (preCheck is not null) return preCheck;
-
-        var dup = await EnsureNoDuplicatePartnerRefAsync(request.PartnerId, request.Request.PartnerTransactionRef, cancellationToken);
-        if (dup is not null) return dup;
-
-        var (sub, subErr) = await ResolveBankSubscriptionOrFailAsync(
-            request.PartnerId, request.Request.PhoneNumber, request.Request.BankAccount, cancellationToken);
-        if (subErr is not null) return subErr;
-
-        var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
-
-        var tx = BuildBankTransaction(request.Request, sub!, request.PartnerId, TransactionType.BankDebit);
-
-        await Transactions.AddAsync(tx, cancellationToken);
-        await Uow.SaveChangesAsync(cancellationToken);
-
-        try
-        {
-            var resp = await _bank.DebitAsync(partner!, new BankTransactionRequest(
-                tx.PartnerTransactionRef, request.Request.BankAccount!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
-
-            await FinalizeAsync(tx, resp.ExternalRef,
-                success: resp.Status.Equals("SUCCESS", StringComparison.OrdinalIgnoreCase),
-                failureReason: resp.FailureReason, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Bank debit failed for {TxId}", tx.TransactionId);
-            await FinalizeAsync(tx, null, false, ex.Message, cancellationToken);
-        }
-
-        if (tx.Status == TransactionStatus.Success)
-            return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
-
-        return Result<TransactionDto>.Failure("TRANSACTION_FAILED", tx.FailureReason ?? "Transaction failed");
-    }
+    public Task<Result<TransactionDto>> Handle(BankDebitCommand request, CancellationToken ct)
+        => ProcessBankTransactionAsync(request.PartnerId, request.Request,
+            TransactionType.BankDebit, FinancialEndpointKey.BankDebit, isDebit: true, ct);
 }
 
 public record BankCreditCommand(Guid PartnerId, BankTransactionInitiateRequest Request) : IRequest<Result<TransactionDto>>;
@@ -88,55 +49,16 @@ public class BankCreditValidator : AbstractValidator<BankCreditCommand>
 
 public class BankCreditCommandHandler : BankBaseHandler, IRequestHandler<BankCreditCommand, Result<TransactionDto>>
 {
-    private readonly IBankApiClient _bank;
-
     public BankCreditCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
-        IPartnerEndpointRepository partnerEndpoints,
+        IPartnerEndpointRepository partnerEndpoints, IAccountingSchemaRepository schemas,
+        IBankApiClient bank,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
-        IMapper mapper, ILogger<BankCreditCommandHandler> logger, IBankApiClient bank)
-        : base(transactions, subscriptions, partners, partnerEndpoints, uow, accounting, webhooks, mapper, logger)
-    {
-        _bank = bank;
-    }
+        IMapper mapper, ILogger<BankCreditCommandHandler> logger)
+        : base(transactions, subscriptions, partners, partnerEndpoints, schemas, bank,
+               uow, accounting, webhooks, mapper, logger) { }
 
-    public async Task<Result<TransactionDto>> Handle(BankCreditCommand request, CancellationToken cancellationToken)
-    {
-        var preCheck = await PreValidatePartnerAsync(request.PartnerId, TransactionType.BankCredit, cancellationToken);
-        if (preCheck is not null) return preCheck;
-
-        var dup = await EnsureNoDuplicatePartnerRefAsync(request.PartnerId, request.Request.PartnerTransactionRef, cancellationToken);
-        if (dup is not null) return dup;
-
-        var (sub, subErr) = await ResolveBankSubscriptionOrFailAsync(
-            request.PartnerId, request.Request.PhoneNumber, request.Request.BankAccount, cancellationToken);
-        if (subErr is not null) return subErr;
-
-        var partner = await Partners.GetByIdAsync(request.PartnerId, cancellationToken);
-
-        var tx = BuildBankTransaction(request.Request, sub!, request.PartnerId, TransactionType.BankCredit);
-
-        await Transactions.AddAsync(tx, cancellationToken);
-        await Uow.SaveChangesAsync(cancellationToken);
-
-        try
-        {
-            var resp = await _bank.CreditAsync(partner!, new BankTransactionRequest(
-                tx.PartnerTransactionRef, request.Request.BankAccount!, tx.Amount, tx.Currency, request.Request.Description), cancellationToken);
-
-            await FinalizeAsync(tx, resp.ExternalRef,
-                success: resp.Status.Equals("SUCCESS", StringComparison.OrdinalIgnoreCase),
-                failureReason: resp.FailureReason, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Bank credit failed for {TxId}", tx.TransactionId);
-            await FinalizeAsync(tx, null, false, ex.Message, cancellationToken);
-        }
-
-        if (tx.Status == TransactionStatus.Success)
-            return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
-
-        return Result<TransactionDto>.Failure("TRANSACTION_FAILED", tx.FailureReason ?? "Transaction failed");
-    }
+    public Task<Result<TransactionDto>> Handle(BankCreditCommand request, CancellationToken ct)
+        => ProcessBankTransactionAsync(request.PartnerId, request.Request,
+            TransactionType.BankCredit, FinancialEndpointKey.BankCredit, isDebit: false, ct);
 }
