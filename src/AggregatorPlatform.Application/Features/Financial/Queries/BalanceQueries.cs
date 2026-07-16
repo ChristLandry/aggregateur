@@ -7,12 +7,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AggregatorPlatform.Application.Features.Financial.Queries;
 
-public record GetBankBalanceQuery(Guid PartnerId, BankBalanceRequest Request) : IRequest<Result<BalanceDto>>;
+public record GetBankBalanceQuery(Guid PartnerId, BankBalanceRequest Request) : IRequest<Result<BankBalanceDto>>;
 public record GetWalletBalanceQuery(Guid PartnerId, Guid SubscriptionId) : IRequest<Result<BalanceDto>>;
 public record GetBankKycQuery(Guid PartnerId, BankKycRequest Request) : IRequest<Result<BankKycDto>>;
 public record GetWalletKycQuery(Guid PartnerId, WalletKycRequest Request) : IRequest<Result<WalletKycDto>>;
 
-public class GetBankBalanceQueryHandler : IRequestHandler<GetBankBalanceQuery, Result<BalanceDto>>
+public class GetBankBalanceQueryHandler : IRequestHandler<GetBankBalanceQuery, Result<BankBalanceDto>>
 {
     private readonly IPartnerRepository _partners;
     private readonly ISubscriptionRepository _subs;
@@ -26,22 +26,22 @@ public class GetBankBalanceQueryHandler : IRequestHandler<GetBankBalanceQuery, R
         _bank = bank;
     }
 
-    public async Task<Result<BalanceDto>> Handle(GetBankBalanceQuery request, CancellationToken cancellationToken)
+    public async Task<Result<BankBalanceDto>> Handle(GetBankBalanceQuery request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Request.BankAccount) || string.IsNullOrWhiteSpace(request.Request.PhoneNumber))
-            return Result<BalanceDto>.Failure("SUBSCRIPTION_REQUIRED", "BankAccount and PhoneNumber are both required.");
+            return Result<BankBalanceDto>.Failure("SUBSCRIPTION_REQUIRED", "BankAccount and PhoneNumber are both required.");
 
         var partner = await _partners.GetByIdAsync(request.PartnerId, cancellationToken);
-        if (partner is null) return Result<BalanceDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
+        if (partner is null) return Result<BankBalanceDto>.Failure("PARTNER_NOT_FOUND", "Partner not found.");
 
         var sub = await _subs.GetActiveSubscriptionByPartnerAndContactAsync(
             request.PartnerId, request.Request.PhoneNumber, request.Request.BankAccount, cancellationToken);
         if (sub is null)
-            return Result<BalanceDto>.Failure("SUBSCRIPTION_NOT_FOUND",
+            return Result<BankBalanceDto>.Failure("SUBSCRIPTION_NOT_FOUND",
                 "No active subscription found for the provided PhoneNumber and BankAccount pair.");
 
-        var resp = await _bank.GetBalanceAsync(partner, sub.PhoneNumber, cancellationToken);
-        return Result<BalanceDto>.Success(new BalanceDto(resp.PhoneNumber, resp.Balance, resp.Currency, resp.Status));
+        var resp = await _bank.GetBalanceAsync(partner, sub.BankAccount, cancellationToken);
+        return Result<BankBalanceDto>.Success(new BankBalanceDto(sub.BankAccount, resp.FondDispo));
     }
 }
 

@@ -91,8 +91,9 @@ public class OnboardCustomerCommandHandler : IRequestHandler<OnboardCustomerComm
         BankKycDto bankKyc;
         try
         {
-            bankKyc = await _bank.GetKycAsync(partner,
-                new BankKycRequest(req.BankAccount, req.WalletTemporalyCode, null), ct);
+            // Le connecteur bank_connector n'attend que bankAccount ; les anciens
+            // walletTemporalyCode/extras ne sont plus consommes.
+            bankKyc = await _bank.GetKycAsync(partner, new BankKycRequest(req.BankAccount), ct);
         }
         catch (Exception ex)
         {

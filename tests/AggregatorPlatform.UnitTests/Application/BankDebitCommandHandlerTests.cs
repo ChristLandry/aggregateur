@@ -45,11 +45,12 @@ public class BankDebitCommandHandlerTests
         // Par defaut : schema bank-managed (skip AccountingEngine dans le pipeline).
         schemas.Setup(s => s.GetByIdAsync(schemaId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AccountingSchema { SchemaId = schemaId, Name = "TEST", IsBankManaged = true });
-        // Balance UNKNOWN -> balance check tolere en dev (pas de blocage).
+        // Balance FondDispo=0 -> balance check tolere en dev (pas de blocage).
         bank.Setup(b => b.GetBalanceAsync(It.IsAny<Partner>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new BankBalanceResponse("", 0, "XOF", "UNKNOWN"));
+            .ReturnsAsync(new BankBalanceResponse(0));
+        var movements = new Mock<IRepository<Movement>>();
         return new BankDebitCommandHandler(txs.Object, subs.Object, partners.Object, partnerEndpoints.Object,
-            schemas.Object, bank.Object,
+            schemas.Object, bank.Object, movements.Object,
             uow.Object, accounting.Object, webhooks.Object, BuildMapper(),
             NullLogger<BankDebitCommandHandler>.Instance);
     }
@@ -140,8 +141,8 @@ public class BankDebitCommandHandlerTests
                 PhoneNumber = "+22177",
                 Status = SubscriptionStatus.Active
             });
-        bank.Setup(x => x.DebitAsync(It.IsAny<Partner>(), It.IsAny<BankTransactionRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new BankTransactionResponse("EXT-1", "FAILED", "INSUFFICIENT_FUNDS"));
+        bank.Setup(x => x.TransactionAsync(It.IsAny<Partner>(), It.IsAny<BankTransactionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BankTransactionResponse(false, "EXT-1", DateTime.UtcNow, "INSUFFICIENT_FUNDS"));
 
         var result = await handler.Handle(new BankDebitCommand(partnerId, MakeReq(@ref: "REF2")), CancellationToken.None);
 

@@ -18,6 +18,7 @@ public abstract class BankBaseHandler : FinancialBaseHandler
 {
     protected readonly IAccountingSchemaRepository Schemas;
     protected readonly IBankApiClient BankClient;
+    protected readonly IRepository<Movement> Movements;
 
     protected BankBaseHandler(
         ITransactionRepository transactions,
@@ -26,6 +27,7 @@ public abstract class BankBaseHandler : FinancialBaseHandler
         IPartnerEndpointRepository partnerEndpoints,
         IAccountingSchemaRepository schemas,
         IBankApiClient bankClient,
+        IRepository<Movement> movements,
         IUnitOfWork uow,
         IAccountingEngine accounting,
         IWebhookService webhooks,
@@ -35,6 +37,7 @@ public abstract class BankBaseHandler : FinancialBaseHandler
     {
         Schemas = schemas;
         BankClient = bankClient;
+        Movements = movements;
     }
 
     // ------------------------------------------------------------------
@@ -70,25 +73,27 @@ public abstract class BankBaseHandler : FinancialBaseHandler
     }
 
     /// <summary>
-    /// Verifie le solde bancaire du client. Renvoie null si OK ou si la banque n'a
-    /// pas pu confirmer (status != SUCCESS, tolere pour ne pas bloquer en dev). Sinon
-    /// renvoie un Result.Failure INSUFFICIENT_FUNDS.
+    /// Verifie le solde bancaire du client via le connecteur bank_connector
+    /// (POST /bank/balance). Le connecteur ne renvoie que FondDispo : on
+    /// compare directement a amount + fees. Renvoie null si OK, sinon
+    /// INSUFFICIENT_FUNDS. Un FondDispo=0 est tolere pour ne pas bloquer
+    /// les tests en dev quand le connecteur est down (fail-safe cote client).
     /// </summary>
     protected async Task<Result<TransactionDto>?> EnsureSufficientBalanceAsync(
-        Partner partner, string phoneNumber, decimal amount, decimal fees, CancellationToken ct)
+        Partner partner, string bankAccount, decimal amount, decimal fees, CancellationToken ct)
     {
         var required = amount + fees;
-        var balance = await BankClient.GetBalanceAsync(partner, phoneNumber, ct);
-        if (!string.Equals(balance.Status, "SUCCESS", StringComparison.OrdinalIgnoreCase))
+        var balance = await BankClient.GetBalanceAsync(partner, bankAccount, ct);
+        if (balance.FondDispo == 0m)
         {
-            Logger.LogWarning("Balance check tolerated: partner {Partner} phone {Phone} status={Status}",
-                partner.PartnerId, phoneNumber, balance.Status);
+            Logger.LogWarning("Balance check tolerated: partner {Partner} bankAccount {Bank} fondDispo=0 (connecteur down ?).",
+                partner.PartnerId, bankAccount);
             return null;
         }
-        if (balance.Balance < required)
+        if (balance.FondDispo < required)
         {
             return Result<TransactionDto>.Failure("INSUFFICIENT_FUNDS",
-                $"Client balance ({balance.Balance} {balance.Currency}) is below the required amount ({required} {balance.Currency}).");
+                $"Client balance ({balance.FondDispo}) is below the required amount ({required}).");
         }
         return null;
     }
@@ -158,7 +163,7 @@ public abstract class BankBaseHandler : FinancialBaseHandler
         // 4) balance suffisant (debit uniquement — un credit alimente le compte cible)
         if (isDebit)
         {
-            var balErr = await EnsureSufficientBalanceAsync(partner!, req.PhoneNumber!, req.Amount, req.Fees ?? 0m, ct);
+            var balErr = await EnsureSufficientBalanceAsync(partner!, req.BankAccount!, req.Amount, req.Fees ?? 0m, ct);
             if (balErr is not null) return balErr;
         }
 
@@ -175,6 +180,7 @@ public abstract class BankBaseHandler : FinancialBaseHandler
         await Uow.SaveChangesAsync(ct);
 
         // 5b) hub-managed -> mouvements comptables AVANT l'appel bank
+        List<Movement>? generatedMovements = null;
         if (!schema.IsBankManaged)
         {
             await Accounting.ApplyAsync(tx, ct);
@@ -189,25 +195,46 @@ public abstract class BankBaseHandler : FinancialBaseHandler
                 await Uow.SaveChangesAsync(ct);
                 return Result<TransactionDto>.Failure("ACCOUNTING_ERROR", tx.FailureReason);
             }
+
+            // On recupere les mouvements crees pour les envoyer au connecteur bank
+            // via POST /bank/insertmouvement (schema hub-managed).
+            generatedMovements = (await Movements.FindAsync(m => m.TransactionId == tx.TransactionId, ct))
+                .OrderBy(m => m.LineOrder).ToList();
         }
 
-        // 6) appel connecteur bancaire (bankAccount, codopsc, amount, fees)
+        // 6) Appel connecteur bancaire selon le mode du schema :
+        //    - bank-managed : POST /bank/transaction  (bankAccount, codOpsc, amount, fees, transactionId)
+        //    - hub-managed  : POST /bank/insertmouvement (liste des Movement crees)
         var codopsc = req.OperationType ?? schema.Name;
-        var bankReq = new BankTransactionRequest(
-            PartnerRef: tx.PartnerTransactionRef,
-            BankAccount: req.BankAccount!,
-            Codopsc: codopsc,
-            Amount: tx.Amount,
-            Fees: tx.FeeAmount,
-            Currency: tx.Currency,
-            Description: req.Description);
-
         BankTransactionResponse resp;
         try
         {
-            resp = isDebit
-                ? await BankClient.DebitAsync(partner!, bankReq, ct)
-                : await BankClient.CreditAsync(partner!, bankReq, ct);
+            if (schema.IsBankManaged)
+            {
+                var bankReq = new BankTransactionRequest(
+                    BankAccount: req.BankAccount!,
+                    CodOpsc: codopsc,
+                    Amount: tx.Amount,
+                    Fees: tx.FeeAmount,
+                    TransactionId: tx.PartnerTransactionRef);
+                resp = await BankClient.TransactionAsync(partner!, bankReq, ct);
+            }
+            else
+            {
+                var lines = (generatedMovements ?? new List<Movement>())
+                    .Select(m => new BankMouvementLine(
+                        Account: m.Account,
+                        Label: m.Label,
+                        Code: m.Code,
+                        Exploitant: m.Exploitant,
+                        LineOrder: m.LineOrder,
+                        Reference: m.Reference,
+                        IsFee: m.IsFee,
+                        TransactionDate: m.TransactionDate,
+                        TransactionId: tx.PartnerTransactionRef))
+                    .ToList();
+                resp = await BankClient.InsertMouvementAsync(partner!, lines, ct);
+            }
         }
         catch (Exception ex)
         {
@@ -220,15 +247,16 @@ public abstract class BankBaseHandler : FinancialBaseHandler
             return Result<TransactionDto>.Failure("TRANSACTION_FAILED", tx.FailureReason);
         }
 
-        var success = string.Equals(resp.Status, "SUCCESS", StringComparison.OrdinalIgnoreCase);
-        tx.Status = success ? TransactionStatus.Success : TransactionStatus.Failed;
-        tx.ExternalRef = resp.ExternalRef;
-        tx.FailureReason = success ? null : resp.FailureReason;
-        tx.CompletedAt = DateTime.UtcNow;
-        if (success && schema.IsBankManaged)
+        tx.Status = resp.Success ? TransactionStatus.Success : TransactionStatus.Failed;
+        tx.ExternalRef = resp.TransactionBankIdentifier;
+        tx.FailureReason = resp.Success ? null : (resp.FailureReason ?? "Bank connector returned success=false.");
+        tx.CompletedAt = resp.Success && resp.TransactionDate != default ? resp.TransactionDate : DateTime.UtcNow;
+        if (resp.Success && schema.IsBankManaged)
             tx.AccountingStatus = AccountingStatus.Delegated;
         Transactions.Update(tx);
         await Uow.SaveChangesAsync(ct);
+
+        var success = resp.Success;
 
         await Webhooks.EnqueueAsync(tx.PartnerId, tx.TransactionId,
             $"transaction.{(success ? "success" : "failed")}", new

@@ -52,8 +52,12 @@ public static class DependencyInjection
         services.AddMemoryCache();
         services.AddSingleton<ICacheService, MemoryCacheService>();
 
-        // HTTP clients with Polly
-        services.AddHttpClient("PartnerBank")
+        // HTTP clients with Polly.
+        // BankConnector : la BaseAddress est fixee par CreateClient(partner) a chaque appel
+        // (voir BankApiClient). Le nom du client est reference via
+        // BankApiClient.HttpClientName pour eviter le "magic string".
+        services.Configure<HttpClients.BankConnectorOptions>(configuration.GetSection(HttpClients.BankConnectorOptions.SectionName));
+        services.AddHttpClient(HttpClients.BankApiClient.HttpClientName)
             .AddPolicyHandler(GetRetryPolicy())
             .AddPolicyHandler(GetCircuitBreakerPolicy());
         services.AddHttpClient("PartnerWallet")

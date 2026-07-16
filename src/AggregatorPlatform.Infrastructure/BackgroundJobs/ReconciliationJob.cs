@@ -44,8 +44,10 @@ public class ReconciliationJob : BackgroundService
         var partners = sp.GetRequiredService<IPartnerRepository>();
         var uow = sp.GetRequiredService<IUnitOfWork>();
         var accounting = sp.GetRequiredService<IAccountingEngine>();
-        var bank = sp.GetRequiredService<IBankApiClient>();
         var wallet = sp.GetRequiredService<IWalletApiClient>();
+        // Bank : plus de reconciliation via GetStatus. Le connecteur bank_connector
+        // n'expose pas /bank/status ; les transactions Pending bank sont laissees
+        // en l'etat et remontees par le job de monitoring pour investigation manuelle.
 
         var threshold = DateTime.UtcNow.AddMinutes(-30);
         var pending = await txs.GetPendingOlderThanAsync(threshold, ct);
@@ -61,22 +63,18 @@ public class ReconciliationJob : BackgroundService
             var partner = await partners.GetByIdAsync(tx.PartnerId, ct);
             if (partner is null || string.IsNullOrEmpty(tx.ExternalRef)) continue;
 
+            // Reconciliation limitee aux tx wallet : le connecteur bank_connector
+            // n'expose pas /bank/status, on ne peut pas rejouer une verif de statut.
+            if (tx.TransactionType is TransactionType.BankDebit or TransactionType.BankCredit)
+                continue;
+
             try
             {
                 string statusStr;
                 string? failureReason;
-                if (tx.TransactionType is TransactionType.BankDebit or TransactionType.BankCredit)
-                {
-                    var resp = await bank.GetStatusAsync(partner, tx.ExternalRef, ct);
-                    statusStr = resp.Status;
-                    failureReason = resp.FailureReason;
-                }
-                else
-                {
-                    var resp = await wallet.GetStatusAsync(partner, tx.ExternalRef, ct);
-                    statusStr = resp.Status;
-                    failureReason = resp.FailureReason;
-                }
+                var resp = await wallet.GetStatusAsync(partner, tx.ExternalRef, ct);
+                statusStr = resp.Status;
+                failureReason = resp.FailureReason;
 
                 if (statusStr.Equals("SUCCESS", StringComparison.OrdinalIgnoreCase))
                 {

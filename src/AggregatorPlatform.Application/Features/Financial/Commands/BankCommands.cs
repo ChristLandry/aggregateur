@@ -29,10 +29,10 @@ public class BankDebitCommandHandler : BankBaseHandler, IRequestHandler<BankDebi
     public BankDebitCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
         IPartnerEndpointRepository partnerEndpoints, IAccountingSchemaRepository schemas,
-        IBankApiClient bank,
+        IBankApiClient bank, IRepository<Domain.Entities.Movement> movements,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<BankDebitCommandHandler> logger)
-        : base(transactions, subscriptions, partners, partnerEndpoints, schemas, bank,
+        : base(transactions, subscriptions, partners, partnerEndpoints, schemas, bank, movements,
                uow, accounting, webhooks, mapper, logger) { }
 
     public Task<Result<TransactionDto>> Handle(BankDebitCommand request, CancellationToken ct)
@@ -52,10 +52,10 @@ public class BankCreditCommandHandler : BankBaseHandler, IRequestHandler<BankCre
     public BankCreditCommandHandler(
         ITransactionRepository transactions, ISubscriptionRepository subscriptions, IPartnerRepository partners,
         IPartnerEndpointRepository partnerEndpoints, IAccountingSchemaRepository schemas,
-        IBankApiClient bank,
+        IBankApiClient bank, IRepository<Domain.Entities.Movement> movements,
         IUnitOfWork uow, IAccountingEngine accounting, IWebhookService webhooks,
         IMapper mapper, ILogger<BankCreditCommandHandler> logger)
-        : base(transactions, subscriptions, partners, partnerEndpoints, schemas, bank,
+        : base(transactions, subscriptions, partners, partnerEndpoints, schemas, bank, movements,
                uow, accounting, webhooks, mapper, logger) { }
 
     public Task<Result<TransactionDto>> Handle(BankCreditCommand request, CancellationToken ct)

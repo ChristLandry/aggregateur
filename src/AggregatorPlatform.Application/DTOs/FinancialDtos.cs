@@ -137,21 +137,32 @@ public record WalletKycDto(
     DateOnly DateOfBirth,
     string? NationalId);
 
-/// <summary>Requete de KYC bank cote partenaire (POST /api/v1/bank/kyc).</summary>
-/// <param name="PhoneNumber">Numero de telephone identifiant le compte bancaire (obligatoire).</param>
-/// <param name="PartnerTemporalyCode">Code temporaire fourni par le partenaire (nonce/OTP).</param>
-/// <param name="Extras">Donnees additionnelles libres transmises par le partenaire.</param>
-public record BankKycRequest(
-    string PhoneNumber,
-    string? PartnerTemporalyCode,
-    Dictionary<string, object?>? Extras);
+/// <summary>
+/// Requete de KYC bank (POST /api/v1/bank/kyc). Miroir du contrat connecteur
+/// bank_connector : le seul champ requis est le compte bancaire. Les anciens
+/// PartnerTemporalyCode / Extras ne sont plus consommes par le connecteur.
+/// </summary>
+public record BankKycRequest(string BankAccount);
 
-/// <summary>Reponse KYC bank : identite du client rattachee au compte bancaire.</summary>
+/// <summary>
+/// Reponse KYC bank : identite du client rattachee au compte bancaire.
+/// Les champs proviennent tous du connecteur bank_connector — aucun n'est
+/// fabrique cote hub. <see cref="DateOfBirth"/> est parse depuis la chaine
+/// "yyyy-MM-dd" du connecteur ; si le parsing echoue, la valeur reste null.
+/// </summary>
 public record BankKycDto(
     string PhoneNumber,
     string FullName,
     DateOnly? DateOfBirth,
+    string? IdType,
     string? NationalId);
+
+/// <summary>
+/// Reponse metier partenaire pour POST /api/v1/bank/balance.
+/// Ne contient QUE ce que le connecteur bank_connector expose : l'identifiant
+/// du compte interroge + le fond disponible. Pas de Currency, pas de Status.
+/// </summary>
+public record BankBalanceDto(string BankAccount, decimal FondDispo);
 
 /// <summary>
 /// Enveloppe de reponse specifique aux operations wallet transactionnelles

@@ -1,17 +1,14 @@
 namespace AggregatorPlatform.Application.Interfaces;
 
 /// <summary>
-/// Payload envoye au connecteur bancaire pour un debit/credit.
-/// - BankAccount : compte cible cote banque (identifiant du client).
-/// - Codopsc : code operation (ex. BTW/WTB pour le sens transfert-banque/wallet)
-///   ou code metier issu du schema comptable ; consomme par la banque pour router.
-/// - Fees : frais applicables, calcules par le hub ou surchargeables par le payload.
+/// Payload envoye au connecteur bancaire pour POST /bank/transaction.
+/// Le sens (BTW = debit banque, WTB = credit banque) est porte par
+/// <see cref="CodOpsc"/> ; il n'y a qu'un seul endpoint cote connecteur.
+/// TransactionId = reference partenaire cote hub (idempotence).
 /// </summary>
 public record BankTransactionRequest(
-    string PartnerRef,
     string BankAccount,
-    string? Codopsc,
+    string CodOpsc,
     decimal Amount,
     decimal Fees,
-    string Currency,
-    string? Description);
+    string TransactionId);

@@ -27,7 +27,7 @@ public class BankController : BaseApiController
     /// (PartnerId, BankAccount, PhoneNumber).
     /// </summary>
     [HttpPost("balance")]
-    public async Task<ActionResult<ApiResponse<BalanceDto>>> GetBalance([FromBody] BankBalanceRequest request, CancellationToken ct)
+    public async Task<ActionResult<ApiResponse<BankBalanceDto>>> GetBalance([FromBody] BankBalanceRequest request, CancellationToken ct)
         => ToResponse(await Mediator.Send(new GetBankBalanceQuery(PartnerId, request), ct));
 
     /// <summary>KYC bank par numero de compte. Retourne l'identite du client rattache au compte.</summary>
