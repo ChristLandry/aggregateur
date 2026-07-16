@@ -70,7 +70,7 @@ public class WalletDebitCommandHandler : FinancialBaseHandler, IRequestHandler<W
         if (tx.Status == TransactionStatus.Success)
             return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
 
-        return Result<TransactionDto>.Failure(tx.FailureReason ?? "Transaction failed", "TRANSACTION_FAILED");
+        return Result<TransactionDto>.Failure("TRANSACTION_FAILED", tx.FailureReason ?? "Transaction failed");
     }
 }
 
@@ -134,7 +134,7 @@ public class WalletCreditCommandHandler : FinancialBaseHandler, IRequestHandler<
         if (tx.Status == TransactionStatus.Success)
             return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
 
-        return Result<TransactionDto>.Failure(tx.FailureReason ?? "Transaction failed", "TRANSACTION_FAILED");
+        return Result<TransactionDto>.Failure("TRANSACTION_FAILED", tx.FailureReason ?? "Transaction failed");
     }
 }
 
@@ -217,6 +217,6 @@ public class WalletCancelCommandHandler : FinancialBaseHandler, IRequestHandler<
         if (tx.Status == TransactionStatus.Success)
             return Result<TransactionDto>.Success(Mapper.Map<TransactionDto>(tx));
 
-        return Result<TransactionDto>.Failure(tx.FailureReason ?? "Transaction failed", "TRANSACTION_FAILED");
+        return Result<TransactionDto>.Failure("TRANSACTION_FAILED", tx.FailureReason ?? "Transaction failed");
     }
 }

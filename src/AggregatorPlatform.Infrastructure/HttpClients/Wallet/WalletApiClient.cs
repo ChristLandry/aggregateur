@@ -34,6 +34,8 @@ public class WalletApiClient : IWalletApiClient
 
     public async Task<WalletBalanceResponse> GetBalanceAsync(Partner partner, string phoneNumber, CancellationToken cancellationToken = default)
     {
+        // Catch-all : HttpRequestException, JsonException et Polly.BrokenCircuitException
+        // couverts ; on renvoie toujours une reponse structuree (UNKNOWN) plutot que 500.
         try
         {
             var client = CreateClient(partner);
@@ -41,25 +43,30 @@ public class WalletApiClient : IWalletApiClient
                 $"/wallet/balance?phone={Uri.EscapeDataString(phoneNumber)}", cancellationToken);
             return resp ?? new WalletBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
         }
-        catch (JsonException ex)
+        catch (Exception ex)
         {
-            _logger.LogError(ex, "Wallet balance JSON parsing failed for partner {PartnerId}", partner.PartnerId);
-            return new WalletBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, "Wallet balance HTTP request failed for partner {PartnerId}", partner.PartnerId);
+            _logger.LogError(ex, "Wallet balance failed for partner {PartnerId} ({Type}: {Message})",
+                partner.PartnerId, ex.GetType().Name, ex.Message);
             return new WalletBalanceResponse(phoneNumber, 0, partner.Currency, "UNKNOWN");
         }
     }
 
     public async Task<WalletKycDto> GetKycAsync(Partner partner, WalletKycRequest request, CancellationToken cancellationToken = default)
     {
-        var client = CreateClient(partner);
-        var response = await client.PostAsJsonAsync("/wallet/kyc", request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadFromJsonAsync<WalletKycDto>(cancellationToken: cancellationToken);
-        return body ?? throw new InvalidOperationException("Empty KYC response body.");
+        try
+        {
+            var client = CreateClient(partner);
+            var response = await client.PostAsJsonAsync("/wallet/kyc", request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var body = await response.Content.ReadFromJsonAsync<WalletKycDto>(cancellationToken: cancellationToken);
+            return body ?? new WalletKycDto(request.PhoneNumber, string.Empty, default, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Wallet KYC failed for partner {PartnerId} ({Type}: {Message})",
+                partner.PartnerId, ex.GetType().Name, ex.Message);
+            return new WalletKycDto(request.PhoneNumber, string.Empty, default, null);
+        }
     }
 
     public async Task<WalletTransactionResponse> DebitAsync(Partner partner, WalletTransactionRequest request, CancellationToken cancellationToken = default)

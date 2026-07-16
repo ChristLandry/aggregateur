@@ -44,23 +44,34 @@ public class WaveLinkedAccountConnector : IWalletApiClient
                 400);
         }
 
-        var kyc = await _wave.GetKycAsync(
-            partner,
-            walletTemporalyCode: otp,
-            alias: request.PhoneNumber.Trim(),
-            extras: request.Extras,
-            cancellationToken);
+        try
+        {
+            var kyc = await _wave.GetKycAsync(
+                partner,
+                walletTemporalyCode: otp,
+                alias: request.PhoneNumber.Trim(),
+                extras: request.Extras,
+                cancellationToken);
 
-        var dob = DateOnly.TryParseExact(
-            kyc.BirthDate, "yyyy-MM-dd",
-            CultureInfo.InvariantCulture, DateTimeStyles.None,
-            out var parsed) ? parsed : default;
+            var dob = DateOnly.TryParseExact(
+                kyc.BirthDate, "yyyy-MM-dd",
+                CultureInfo.InvariantCulture, DateTimeStyles.None,
+                out var parsed) ? parsed : default;
 
-        return new WalletKycDto(
-            PhoneNumber: request.PhoneNumber,
-            FullName: kyc.FullNam ?? string.Empty,
-            DateOfBirth: dob,
-            NationalId: kyc.IdNumber);
+            return new WalletKycDto(
+                PhoneNumber: request.PhoneNumber,
+                FullName: kyc.FullNam ?? string.Empty,
+                DateOfBirth: dob,
+                NationalId: kyc.IdNumber);
+        }
+        catch (Exception ex)
+        {
+            // Facade Wave indisponible / circuit ouvert / erreur reseau : on renvoie
+            // un KYC vide plutot que de bulle en 500.
+            _logger.LogError(ex, "Wave KYC failed for partner {PartnerId} ({Type}: {Message})",
+                partner.PartnerId, ex.GetType().Name, ex.Message);
+            return new WalletKycDto(request.PhoneNumber, string.Empty, default, null);
+        }
     }
 
     public async Task<WalletLinkResponse> LinkAsync(Partner partner, WalletLinkRequest request, CancellationToken cancellationToken = default)
@@ -74,21 +85,34 @@ public class WaveLinkedAccountConnector : IWalletApiClient
                 400);
         }
 
-        var link = await _wave.LinkAsync(
-            partner,
-            bankAccount: request.BankAccount,
-            alias: request.PartnerRef,
-            activationKey: activationKey,
-            extras: request.Extras,
-            cancellationToken);
+        try
+        {
+            var link = await _wave.LinkAsync(
+                partner,
+                bankAccount: request.BankAccount,
+                alias: request.PartnerRef,
+                activationKey: activationKey,
+                extras: request.Extras,
+                cancellationToken);
 
-        var failureReason = link.Success ? null : TryReadFailureReason(link.Extras);
+            var failureReason = link.Success ? null : TryReadFailureReason(link.Extras);
 
-        return new WalletLinkResponse(
-            LinkId: link.Success ? link.PartnerAccountId : null,
-            PhoneNumber: request.PhoneNumber,
-            Status: link.Success ? "SUCCESS" : "FAILED",
-            FailureReason: failureReason);
+            return new WalletLinkResponse(
+                LinkId: link.Success ? link.PartnerAccountId : null,
+                PhoneNumber: request.PhoneNumber,
+                Status: link.Success ? "SUCCESS" : "FAILED",
+                FailureReason: failureReason);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Wave link failed for partner {PartnerId} ({Type}: {Message})",
+                partner.PartnerId, ex.GetType().Name, ex.Message);
+            return new WalletLinkResponse(
+                LinkId: null,
+                PhoneNumber: request.PhoneNumber,
+                Status: "FAILED",
+                FailureReason: $"Wave facade unreachable: {ex.Message}");
+        }
     }
 
     public async Task<WalletLinkResponse> UnlinkAsync(Partner partner, WalletUnlinkRequest request, CancellationToken cancellationToken = default)
@@ -106,40 +130,74 @@ public class WaveLinkedAccountConnector : IWalletApiClient
                 FailureReason: "Wave unlink requires PartnerRef (bank_link_reference) or LinkId.");
         }
 
-        var result = await _wave.UnlinkAsync(
-            partner,
-            bankAccount: string.Empty,
-            alias: alias,
-            extras: null,
-            cancellationToken);
+        try
+        {
+            var result = await _wave.UnlinkAsync(
+                partner,
+                bankAccount: string.Empty,
+                alias: alias,
+                extras: null,
+                cancellationToken);
 
-        var failureReason = result.Success ? null : TryReadFailureReason(result.Extras);
+            var failureReason = result.Success ? null : TryReadFailureReason(result.Extras);
 
-        return new WalletLinkResponse(
-            LinkId: request.LinkId,
-            PhoneNumber: request.PhoneNumber ?? string.Empty,
-            Status: result.Success ? "SUCCESS" : "FAILED",
-            FailureReason: failureReason);
+            return new WalletLinkResponse(
+                LinkId: request.LinkId,
+                PhoneNumber: request.PhoneNumber ?? string.Empty,
+                Status: result.Success ? "SUCCESS" : "FAILED",
+                FailureReason: failureReason);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Wave unlink failed for partner {PartnerId} ({Type}: {Message})",
+                partner.PartnerId, ex.GetType().Name, ex.Message);
+            return new WalletLinkResponse(
+                LinkId: request.LinkId,
+                PhoneNumber: request.PhoneNumber ?? string.Empty,
+                Status: "FAILED",
+                FailureReason: $"Wave facade unreachable: {ex.Message}");
+        }
     }
 
     // ---------------------------------------------------------------------
     // Opérations non fournies par la façade Wave (501)
     // ---------------------------------------------------------------------
 
+    // La facade Wave (Aggregator.WaveConnector.Api) n'expose pas encore ces routes :
+    // on renvoie des reponses structurees marquees NOT_IMPLEMENTED plutot que
+    // de lever une exception -> les endpoints /wallet/balance & /wallet/status
+    // repondent 200 avec status explicite, /wallet/debit|credit|cancel restent
+    // interceptes par le handler et marques Failed.
+
     public Task<WalletBalanceResponse> GetBalanceAsync(Partner partner, string phoneNumber, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException(FacadeNotImplementedMessage);
+    {
+        _logger.LogWarning("Wave connector: GetBalance non implemente cote facade pour partner {PartnerId}.", partner.PartnerId);
+        return Task.FromResult(new WalletBalanceResponse(phoneNumber, 0, partner.Currency, "NOT_IMPLEMENTED"));
+    }
 
     public Task<WalletTransactionResponse> DebitAsync(Partner partner, WalletTransactionRequest request, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException(FacadeNotImplementedMessage);
+    {
+        _logger.LogWarning("Wave connector: Debit non implemente cote facade pour partner {PartnerId}.", partner.PartnerId);
+        return Task.FromResult(new WalletTransactionResponse(string.Empty, "FAILED", FacadeNotImplementedMessage));
+    }
 
     public Task<WalletTransactionResponse> CreditAsync(Partner partner, WalletTransactionRequest request, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException(FacadeNotImplementedMessage);
+    {
+        _logger.LogWarning("Wave connector: Credit non implemente cote facade pour partner {PartnerId}.", partner.PartnerId);
+        return Task.FromResult(new WalletTransactionResponse(string.Empty, "FAILED", FacadeNotImplementedMessage));
+    }
 
     public Task<WalletTransactionResponse> CancelAsync(Partner partner, string externalRef, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException(FacadeNotImplementedMessage);
+    {
+        _logger.LogWarning("Wave connector: Cancel non implemente cote facade pour partner {PartnerId}.", partner.PartnerId);
+        return Task.FromResult(new WalletTransactionResponse(externalRef, "FAILED", FacadeNotImplementedMessage));
+    }
 
     public Task<WalletTransactionResponse> GetStatusAsync(Partner partner, string externalRef, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException(FacadeNotImplementedMessage);
+    {
+        _logger.LogWarning("Wave connector: GetStatus non implemente cote facade pour partner {PartnerId}.", partner.PartnerId);
+        return Task.FromResult(new WalletTransactionResponse(externalRef, "NOT_IMPLEMENTED", FacadeNotImplementedMessage));
+    }
 
     // ---------------------------------------------------------------------
     // Helpers
