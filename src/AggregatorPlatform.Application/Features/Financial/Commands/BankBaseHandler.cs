@@ -221,16 +221,28 @@ public abstract class BankBaseHandler : FinancialBaseHandler
             }
             else
             {
+                // Le connecteur bank_connector exige Code, Exploitant, Reference,
+                // TransactionDate et TransactionId non nuls ET non vides sur chaque ligne
+                // ([Required] avec AllowEmptyStrings=false par defaut sur ASP.NET Core).
+                // Cote hub, Movement.{Code,Exploitant,Reference} sont nullable en base.
+                // On applique des fallbacks metier plutot qu'une chaine vide :
+                //   Code       -> OperationType (BTW/WTB) ou nom du schema
+                //   Exploitant -> PartnerCode (identifie qui exploite le mouvement)
+                //   Reference  -> PartnerTransactionRef (deja la ref d'idempotence hub)
+                var codeFallback = string.IsNullOrWhiteSpace(codopsc) ? schema.Name : codopsc;
+                var exploitantFallback = string.IsNullOrWhiteSpace(partner!.PartnerCode)
+                    ? partner.PartnerId.ToString()
+                    : partner.PartnerCode;
                 var lines = (generatedMovements ?? new List<Movement>())
                     .Select(m => new BankMouvementLine(
                         Account: m.Account,
                         Label: m.Label,
-                        Code: m.Code,
-                        Exploitant: m.Exploitant,
+                        Code: string.IsNullOrWhiteSpace(m.Code) ? codeFallback : m.Code!,
+                        Exploitant: string.IsNullOrWhiteSpace(m.Exploitant) ? exploitantFallback : m.Exploitant!,
                         LineOrder: m.LineOrder,
-                        Reference: m.Reference,
+                        Reference: string.IsNullOrWhiteSpace(m.Reference) ? tx.PartnerTransactionRef : m.Reference!,
                         IsFee: m.IsFee,
-                        TransactionDate: m.TransactionDate,
+                        TransactionDate: m.TransactionDate == default ? DateTime.UtcNow : m.TransactionDate,
                         TransactionId: tx.PartnerTransactionRef))
                     .ToList();
                 resp = await BankClient.InsertMouvementAsync(partner!, lines, ct);
@@ -255,6 +267,15 @@ public abstract class BankBaseHandler : FinancialBaseHandler
             tx.AccountingStatus = AccountingStatus.Delegated;
         Transactions.Update(tx);
         await Uow.SaveChangesAsync(ct);
+
+        // Regle metier : le compte miroir du partenaire doit refleter la transaction
+        // meme quand le schema est bank-managed (ApplyAsync n'est pas appele dans ce
+        // cas, donc UpdateMirror ne l'est pas non plus). On l'invoque explicitement.
+        if (resp.Success && schema.IsBankManaged)
+        {
+            await Accounting.ApplyMirrorAsync(tx, ct);
+            await Uow.SaveChangesAsync(ct);
+        }
 
         var success = resp.Success;
 

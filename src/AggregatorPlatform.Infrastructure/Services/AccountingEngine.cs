@@ -169,17 +169,53 @@ public class AccountingEngine : IAccountingEngine
         }
     }
 
+    /// <summary>
+    /// Met a jour uniquement le compte miroir (pas de Movements). Utilise en flow
+    /// bank-managed : la banque produit l'ecriture comptable et renvoie succes,
+    /// mais le hub doit tout de meme refleter le mouvement sur le miroir partenaire.
+    /// </summary>
+    public async Task ApplyMirrorAsync(Transaction transaction, CancellationToken cancellationToken = default)
+    {
+        var partnerAccount = await _accounts.GetByPartnerIdAsync(transaction.PartnerId, cancellationToken);
+        if (partnerAccount is null)
+        {
+            _logger.LogWarning("ApplyMirrorAsync: no PartnerAccount for partner {PartnerId}, tx {TxId} skipped.",
+                transaction.PartnerId, transaction.TransactionId);
+            return;
+        }
+        await UpdateMirrorAccountAsync(transaction, partnerAccount, cancellationToken);
+    }
+
     private async Task UpdateMirrorAccountAsync(Transaction tx, PartnerAccount account, CancellationToken ct)
     {
-        var (movType, amount) = tx.TransactionType switch
+        // Regle metier : sur une transaction bank, le sens du miroir partenaire est
+        // dicte par tx.OperationType (fourni par l'appelant sur /api/v1/bank/*).
+        //   - WTB (Wallet -> Bank)  : le partenaire recoit -> mirror CREDIT
+        //   - BTW (Bank -> Wallet)  : le partenaire finance -> mirror DEBIT
+        // Pour les tx wallet (WalletDebit/Credit/Cancel) ou quand OperationType est
+        // absent, on retombe sur la mecanique par TransactionType.
+        MovementType movType;
+        var amount = tx.NetAmount;
+        if (string.Equals(tx.OperationType, "WTB", StringComparison.OrdinalIgnoreCase))
         {
-            TransactionType.BankDebit    => (MovementType.Credit, tx.NetAmount),
-            TransactionType.WalletDebit  => (MovementType.Credit, tx.NetAmount),
-            TransactionType.BankCredit   => (MovementType.Debit,  tx.NetAmount),
-            TransactionType.WalletCredit => (MovementType.Debit,  tx.NetAmount),
-            TransactionType.WalletCancel => (MovementType.Debit,  tx.NetAmount),
-            _ => (MovementType.Credit, 0m)
-        };
+            movType = MovementType.Credit;
+        }
+        else if (string.Equals(tx.OperationType, "BTW", StringComparison.OrdinalIgnoreCase))
+        {
+            movType = MovementType.Debit;
+        }
+        else
+        {
+            (movType, amount) = tx.TransactionType switch
+            {
+                TransactionType.BankDebit    => (MovementType.Credit, tx.NetAmount),
+                TransactionType.WalletDebit  => (MovementType.Credit, tx.NetAmount),
+                TransactionType.BankCredit   => (MovementType.Debit,  tx.NetAmount),
+                TransactionType.WalletCredit => (MovementType.Debit,  tx.NetAmount),
+                TransactionType.WalletCancel => (MovementType.Debit,  tx.NetAmount),
+                _ => (MovementType.Credit, 0m)
+            };
+        }
 
         if (amount == 0) return;
 

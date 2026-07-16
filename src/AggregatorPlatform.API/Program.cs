@@ -26,7 +26,14 @@ builder.Host.UseSerilog((ctx, lc) => lc
     .Enrich.With<PiiMaskingEnricher>());
 
 // MVC
-builder.Services.AddControllers();
+// Toutes les enums (TransactionStatus, TransactionType, AccountingStatus, ...) sont
+// serialisees en chaine sur les reponses JSON pour que les partenaires n'aient pas
+// a manipuler d'entiers arbitraires. La lecture accepte les deux formes par defaut.
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpContextAccessor();
 

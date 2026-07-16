@@ -40,7 +40,7 @@ public class BankApiClient : IBankApiClient
 
     private HttpClient CreateClient(Partner partner)
     {
-        var baseUrl = !string.IsNullOrWhiteSpace(partner.BaseUrl) ? partner.BaseUrl : _options.BaseUrl;
+        var baseUrl =  _options.BaseUrl;
         if (string.IsNullOrWhiteSpace(baseUrl))
             throw new InvalidOperationException(
                 $"Aucune BaseUrl configuree pour le connecteur bank : Partner.BaseUrl vide et BankConnector:BaseUrl non renseigne (partner {partner.PartnerId}).");
@@ -158,7 +158,14 @@ public class BankApiClient : IBankApiClient
         {
             var client = CreateClient(partner);
             var response = await client.PostAsJsonAsync("/bank/insertmouvement", new { mouvements }, JsonOptions, cancellationToken);
-            response.EnsureSuccessStatusCode();
+            if (!response.IsSuccessStatusCode)
+            {
+                var errBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                var sentJson = JsonSerializer.Serialize(new { mouvements }, JsonOptions);
+                _logger.LogError("Bank insertmouvement HTTP {Status} for partner {PartnerId}. Sent={Sent}. Response={Body}",
+                    (int)response.StatusCode, partner.PartnerId, sentJson, errBody);
+                return new BankTransactionResponse(false, string.Empty, DateTime.UtcNow, $"Bank connector {(int)response.StatusCode}: {errBody}");
+            }
             var body = await response.Content.ReadFromJsonAsync<BankTransactionResponse>(JsonOptions, cancellationToken);
             return body ?? new BankTransactionResponse(false, string.Empty, DateTime.UtcNow, "Empty response body from bank connector.");
         }
